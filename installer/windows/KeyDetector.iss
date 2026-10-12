@@ -116,9 +116,9 @@ Type: filesandordirs; Name: "{commoncf64}\Avid\Audio\Plug-Ins\{#AppName}.aaxplug
 #endif
 
 [Code]
-; A second wizard page (after the standard destination page) that lets the user
-; choose the folder the VST3 plug-in is installed into. Defaults to the shared
-; Common Files\VST3 folder that DAWs scan by default.
+// A second wizard page (after the standard destination page) that lets the user
+// choose the folder the VST3 plug-in is installed into. Defaults to the shared
+// Common Files\VST3 folder that DAWs scan by default.
 var
   Vst3DirPage: TInputDirWizardPage;
 
