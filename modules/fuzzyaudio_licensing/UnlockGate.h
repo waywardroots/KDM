@@ -32,7 +32,6 @@ private:
     juce::Label    titleLabel, infoLabel, keyCaption, statusLabel;
     juce::TextEditor keyEntry;
     juce::TextButton unlockButton { "Unlock" };
-    juce::TextButton buyButton    { "Get a license key" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (UnlockGate)
 };

@@ -34,9 +34,6 @@ UnlockGate::UnlockGate (LicenseManager& licenseToUse)
     unlockButton.onClick = [this] { tryUnlock(); };
     addAndMakeVisible (unlockButton);
 
-    buyButton.onClick = [this] { license.getConfig().websiteURL.launchInDefaultBrowser(); };
-    addAndMakeVisible (buyButton);
-
     statusLabel.setJustificationType (juce::Justification::centred);
     statusLabel.setColour (juce::Label::textColourId, juce::Colour (0xffe0675c));
     addAndMakeVisible (statusLabel);
@@ -87,11 +84,7 @@ void UnlockGate::resized()
     keyEntry.setBounds (r.removeFromTop (juce::jmax (80, r.getHeight() - 70)));
     r.removeFromTop (12);
 
-    {
-        auto row = r.removeFromTop (30);
-        unlockButton.setBounds (row.removeFromLeft (120));
-        buyButton.setBounds (row.removeFromRight (160));
-    }
+    unlockButton.setBounds (r.removeFromTop (30).removeFromLeft (120));
     r.removeFromTop (8);
     statusLabel.setBounds (r.removeFromTop (20));
 }
