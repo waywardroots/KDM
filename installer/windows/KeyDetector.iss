@@ -3,7 +3,8 @@
 ;  (c) 2026 Fuzzy Audio LLC
 ; ----------------------------------------------------------------------------
 ;  Builds a signed-ready setup .exe that installs the VST3 plug-in (and, if
-;  present, the Standalone app).  Inno Setup is free: https://jrsoftware.org
+;  present, the Standalone app).  The wizard lets the user choose both the VST3
+;  folder and the Standalone/app destination.  Inno Setup is free: https://jrsoftware.org
 ;
 ;  USAGE (run from the repo root on Windows):
 ;     1. Download the "KeyDetector-VST3-Windows" artifact from the GitHub
@@ -54,6 +55,10 @@ VersionInfoVersion={#AppVersion}
 DefaultDirName={autopf}\Fuzzy Audio\{#AppName}
 DefaultGroupName=Fuzzy Audio\{#AppName}
 DisableProgramGroupPage=yes
+; Show the standard "Select Destination Location" page (controls where the
+; Standalone app + uninstaller go); a second custom page (see [Code]) lets the
+; user choose the VST3 folder too.
+DisableDirPage=no
 LicenseFile=..\EULA.rtf
 OutputDir=output
 OutputBaseFilename=KeyDetector-{#AppVersion}-Windows-x64
@@ -83,8 +88,8 @@ Name: "aax"; Description: "AAX plug-in (Pro Tools)"; Types: full custom
 #endif
 
 [Files]
-; --- VST3 bundle -> C:\Program Files\Common Files\VST3\Key Detector.vst3 ------
-Source: "{#Vst3Src}\*"; DestDir: "{commoncf64}\VST3\{#AppName}.vst3"; \
+; --- VST3 bundle -> user-selected VST3 folder (default: Common Files\VST3) -----
+Source: "{#Vst3Src}\*"; DestDir: "{code:GetVST3Dir}\{#AppName}.vst3"; \
     Components: vst3; Flags: recursesubdirs createallsubdirs ignoreversion
 #if HaveStandalone
 ; --- Standalone application -> {app} -----------------------------------------
@@ -103,8 +108,35 @@ Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 #endif
 
 [UninstallDelete]
-; Remove the (now empty) bundle folders on uninstall.
-Type: filesandordirs; Name: "{commoncf64}\VST3\{#AppName}.vst3"
+; The VST3 bundle may live in a user-chosen folder, so we rely on Inno's
+; automatic file/dir tracking to remove it (it deletes installed files and the
+; now-empty bundle folders wherever they were placed).
 #if HaveAax
 Type: filesandordirs; Name: "{commoncf64}\Avid\Audio\Plug-Ins\{#AppName}.aaxplugin"
 #endif
+
+[Code]
+; A second wizard page (after the standard destination page) that lets the user
+; choose the folder the VST3 plug-in is installed into. Defaults to the shared
+; Common Files\VST3 folder that DAWs scan by default.
+var
+  Vst3DirPage: TInputDirWizardPage;
+
+procedure InitializeWizard;
+begin
+  Vst3DirPage := CreateInputDirPage (wpSelectDir,
+    'Select VST3 Location',
+    'Where should the VST3 plug-in be installed?',
+    'Setup will install the {#AppName} VST3 plug-in into the following folder.'
+      + #13#10#13#10 +
+    'Most DAWs scan the default folder shown below, so only change it if your host '
+      + 'looks elsewhere. To continue, click Next. To pick a different folder, click Browse.',
+    False, '');
+  Vst3DirPage.Add ('');
+  Vst3DirPage.Values[0] := ExpandConstant ('{commoncf64}\VST3');
+end;
+
+function GetVST3Dir (Param: String): String;
+begin
+  Result := Vst3DirPage.Values[0];
+end;

@@ -46,10 +46,12 @@ iscc /DAppVersion=1.0.0 installer\windows\KeyDetector.iss
 ```
 
 Output: `installer\windows\output\KeyDetector-1.0.0-Windows-x64.exe`. It installs
-the VST3 to `C:\Program Files\Common Files\VST3\Key Detector.vst3` (and the
-Standalone to `C:\Program Files\Fuzzy Audio\Key Detector\` if staged), showing
-`EULA.rtf` on the license page. The Standalone component appears only when the
-`.exe` is present at compile time.
+the VST3 to a **user-selectable folder** (default `C:\Program Files\Common
+Files\VST3\Key Detector.vst3`) via a "Select VST3 Location" page, and the
+Standalone to the destination folder chosen on the standard page (default
+`C:\Program Files\Fuzzy Audio\Key Detector\`). It shows `EULA.rtf` on the license
+page. The Standalone component appears only when the `.exe` is present at compile
+time.
 
 ### macOS (`installer/macos/build_pkg.sh`, `pkgbuild` + `productbuild`)
 Stage the build, then run the script with the version:
