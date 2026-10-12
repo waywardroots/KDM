@@ -64,9 +64,36 @@ the public key.
 > **Key format gotcha:** JUCE keys are **not** PEM/PKCS. A key is the two hex
 > halves `part1,part2` from `keydetector-keygen makepair`. A standard RSA library
 > will reject it as "not a valid private key" - you must sign with JUCE's own
-> `applyToValue` routine (both options below do this correctly).
+> `applyToValue` routine (every option below does this correctly).
+>
+> **Three mistakes to avoid** (they all produce a key that won't unlock):
+> 1. **Do NOT hash the payload** (no SHA-1). JUCE signs the *whole XML bytes* as
+>    one big integer, not a hash. The XML is often larger than the modulus, so the
+>    transform runs over *multiple* base-n blocks (the hex can be ~512 chars, not
+>    just 256).
+> 2. **XML shape**: one flat `<key user="..." email="..." mach="..." app="..."
+>    date="..."/>` - attributes on the root, `app` (not `product`). No nested
+>    `<user>`/`<product>` elements.
+> 3. **File format**: comment lines, a blank line, then `#` + hex. The XML is NOT
+>    written in clear text - the plug-in *decrypts* the hex to recover it. Bytes
+>    are read **little-endian**.
 
-### Option A - PHP signer (tested, drop-in)
+### Option A - TypeScript / Node signer (tested, drop-in)
+
+[`tools/website/generate-licence-keys.ts`](../tools/website/generate-licence-keys.ts)
+is a pure-BigInt signer (no OpenSSL/PEM). Verified to produce keys the plug-in
+accepts. In your purchase webhook:
+
+```ts
+import { generateKeyFile } from "./generate-licence-keys";
+const key = generateKeyFile(
+  { app: "Key Detector", email: buyerEmail, name: buyerName,
+    machine: "key-detector-license-v1" },   // the activation token
+  process.env.LICENSE_SIGNING_KEY!);         // "<d_hex>,<n_hex>", server-side secret
+// email `key` to the buyer
+```
+
+### Option B - PHP signer (tested, drop-in)
 
 [`tools/website/sign_license.php`](../tools/website/sign_license.php) is a complete,
 dependency-light signer (needs the `gmp` PHP extension). It was verified to produce
@@ -91,7 +118,7 @@ php sign_license.php "Key Detector" "jane@example.com" "Jane Doe" \
     "key-detector-license-v1" "<PRIVATE_KEY>"
 ```
 
-### Option B - the bundled C++ generator
+### Option C - the bundled C++ generator
 
 Build the headless CLI once and call it from any backend (`exec`):
 
