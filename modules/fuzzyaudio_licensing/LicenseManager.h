@@ -4,19 +4,22 @@ namespace fuzzyaudio
 {
 
 /**
-    Offline, machine-locked license-key manager for a single product.
+    Offline license-key manager for a single product.
 
     This is a thin, reusable wrapper around juce::OnlineUnlockStatus configured for
-    *offline* key files: your website signs a key file with your RSA private key
-    (bound to the buyer's machine ID), and this class verifies it against the
-    embedded public key.  No runtime server is contacted.
+    *offline* key files: your website signs a key file with your RSA private key and
+    this class verifies it against the embedded public key.  No runtime server is
+    contacted - the user simply pastes the key they were sent.
 
     To reuse in another plug-in, just construct it with that product's Config
     (product id + public key); nothing else is product-specific.
 
-    The key file carries the allowed machine IDs, so a key issued for one machine
-    unlocks only that machine - giving you the "1 licence = 1 computer" rule for
-    free.
+    Machine locking is optional and controlled by Config::activationToken:
+      * Non-empty (default) -> *paste-only*: every key is signed with this same
+        fixed token, so a pasted key activates on any computer (track the "1 key =
+        1 purchase" rule on your website). The user never has to find a machine ID.
+      * Empty -> machine-locked: keys must carry the buyer's machine ID (from
+        getThisMachineID()) and unlock only that computer.
 */
 class LicenseManager : public juce::OnlineUnlockStatus
 {
@@ -29,15 +32,20 @@ public:
         juce::String appName;                   ///< Settings file name (defaults to productId).
         juce::String websiteName { "fuzzyaudio.example" }; ///< Shown to the user.
         juce::URL    websiteURL  { juce::URL ("https://fuzzyaudio.example") }; ///< "Buy" link.
+
+        /** Fixed token used as the "machine number" for paste-only (non machine-
+            locked) keys. Your website must sign every key with this exact string.
+            Set to empty to switch to real machine-locking instead. */
+        juce::String activationToken { "license" };
     };
 
     explicit LicenseManager (Config configToUse);
 
-    /** True once a valid (non-expired, machine-matching) key has been applied. */
+    /** True once a valid (non-expired) key has been applied. */
     bool isActivated();
 
-    /** The single machine ID the user must send to your website so it can issue a
-        key locked to this computer.  Empty only if the host blocks machine info. */
+    /** The machine ID to send to your website (only used when activationToken is
+        empty, i.e. machine-locked mode). */
     juce::String getThisMachineID();
 
     /** Convenience: apply a pasted key file and persist the unlocked state.
@@ -51,6 +59,7 @@ public:
     juce::String getProductID() override                              { return config.productId; }
     bool doesProductIDMatch (const juce::String& returned) override   { return returned == config.productId; }
     juce::RSAKey getPublicKey() override                              { return juce::RSAKey (config.publicKey); }
+    juce::StringArray getLocalMachineIDs() override;
     void saveState (const juce::String& state) override;
     juce::String getState() override;
     juce::String getWebsiteName() override                            { return config.websiteName; }

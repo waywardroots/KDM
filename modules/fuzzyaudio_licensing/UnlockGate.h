@@ -6,9 +6,9 @@ namespace fuzzyaudio
 /**
     A full-panel overlay that asks the user to activate the product.
 
-    It shows the machine ID the user must send to your website, a box to paste the
-    returned key file, and an "Unlock" button.  On success it calls
-    onUnlockSucceeded() so the host editor can reveal the real UI.
+    It shows a box to paste the license key they were sent after purchase and an
+    "Unlock" button.  On success it calls onUnlockSucceeded() so the host editor can
+    reveal the real UI.
 
     It is product-agnostic: it reads everything it needs (product name, website)
     from the LicenseManager it is given, so the same component works in any plug-in.
@@ -29,9 +29,8 @@ private:
 
     LicenseManager& license;
 
-    juce::Label    titleLabel, infoLabel, machineCaption, keyCaption, statusLabel;
-    juce::TextEditor machineIdBox, keyEntry;
-    juce::TextButton copyIdButton { "Copy" };
+    juce::Label    titleLabel, infoLabel, keyCaption, statusLabel;
+    juce::TextEditor keyEntry;
     juce::TextButton unlockButton { "Unlock" };
     juce::TextButton buyButton    { "Get a license key" };
 

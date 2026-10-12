@@ -27,6 +27,10 @@ namespace
         c.appName     = "Key Detector";
         c.websiteName = "fuzzyaudio.example";
         c.websiteURL  = juce::URL ("https://fuzzyaudio.example");
+        // Paste-only licensing: every key is signed with this fixed token, so a key
+        // activates on any machine (no machine-ID step). Your website must sign keys
+        // using this exact string as the "machine id".
+        c.activationToken = "key-detector-license-v1";
         return c;
     }
 }
