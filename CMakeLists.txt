@@ -28,6 +28,13 @@ else()
 endif()
 
 # ==============================================================================
+# Reusable licensing module (offline, machine-locked license keys).
+# Lives in modules/fuzzyaudio_licensing so it can be dropped into any Fuzzy Audio
+# plug-in; this project is just its first consumer.
+# ==============================================================================
+juce_add_module("${CMAKE_CURRENT_SOURCE_DIR}/modules/fuzzyaudio_licensing")
+
+# ==============================================================================
 # Optional AAX (Pro Tools) support.
 #
 # AAX requires Avid's proprietary AAX SDK, which you must obtain from Avid
@@ -101,12 +108,33 @@ juce_add_binary_data(KeyDetectorAssets SOURCES Resources/logo.png)
 target_link_libraries(KeyDetector
     PRIVATE
         KeyDetectorAssets
+        fuzzyaudio_licensing
         juce::juce_audio_utils
         juce::juce_dsp
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
+
+# ==============================================================================
+# License key generator (headless CLI) - OFF by default so normal/CI plug-in
+# builds are unaffected. Enable with -DKEYDETECTOR_BUILD_KEYGEN=ON to build the
+# tool you run on your server (or port to your website) to mint keys.
+# ==============================================================================
+option(KEYDETECTOR_BUILD_KEYGEN "Build the license key generator CLI" OFF)
+if(KEYDETECTOR_BUILD_KEYGEN)
+    juce_add_console_app(KeyDetectorKeygen PRODUCT_NAME "keydetector-keygen")
+    target_sources(KeyDetectorKeygen PRIVATE tools/keygen/keygen.cpp)
+    target_compile_definitions(KeyDetectorKeygen PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_STANDALONE_APPLICATION=1)
+    target_link_libraries(KeyDetectorKeygen PRIVATE
+        juce::juce_product_unlocking
+        juce::juce_data_structures
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags)
+endif()
 
 # ==============================================================================
 # Standalone DSP unit test — pure C++17, links no JUCE, so it always builds and

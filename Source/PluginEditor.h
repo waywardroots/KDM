@@ -29,6 +29,7 @@ private:
     void timerCallback() override;
     void layoutContent();             // lay children out in design coordinates
     double tempoMultFactor() const;   // 0.5 / 1 / 2 from the selector
+    void showUnlockGateIfLocked();    // overlay the UI until a valid key is applied
 
     // The UI is laid out at a fixed "design size" and the whole thing is scaled to
     // fill the (resizable) editor, so every element — including fonts — scales.
@@ -81,6 +82,8 @@ private:
     std::unique_ptr<ComboBoxAttachment> tempoMultAttachment;
 
     std::vector<float> spectrumScratch; // reused each timer tick
+
+    std::unique_ptr<fuzzyaudio::UnlockGate> unlockGate; // shown while unlicensed
 
     // Tap-tempo + BPM hold/fine-tune state (UI-side).
     std::vector<double> tapTimes;        // recent tap timestamps (ms)

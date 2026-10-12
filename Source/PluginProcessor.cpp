@@ -9,11 +9,35 @@
 #include <cmath>
 
 //==============================================================================
+namespace
+{
+    // Builds the licensing configuration for this product. To reuse the licensing
+    // module in another plug-in, copy this and change the product name + public
+    // key. The matching RSA *private* key lives only on your server (keygen tool);
+    // this embedded PUBLIC key can only *verify* keys, never create them.
+    fuzzyaudio::LicenseManager::Config makeLicenseConfig()
+    {
+        fuzzyaudio::LicenseManager::Config c;
+        c.productId   = "Key Detector";
+        c.publicKey   = "5,8598c288e14265057f8aadf9fbdf54184fa5ae012829eddbe4825293ace2cdde"
+                        "1044ee631478b021ad22b028d9a75dd1dfe145e48fea53ad9d67da19394d4c97"
+                        "ddfed409ccb63ee14a9a0a43c117fb5af10f67d3adc33b01a2d009cffe38fe30"
+                        "e2e67b41c7e74ff0cab6e07079b1eca596d7bb22b638c194d4bfe7eb8437f083";
+        c.vendorName  = "Fuzzy Audio";
+        c.appName     = "Key Detector";
+        c.websiteName = "fuzzyaudio.example";
+        c.websiteURL  = juce::URL ("https://fuzzyaudio.example");
+        return c;
+    }
+}
+
+//==============================================================================
 KeyDetectorAudioProcessor::KeyDetectorAudioProcessor()
     : AudioProcessor (BusesProperties()
                           .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
                           .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      apvts (*this, nullptr, "PARAMS", createParameterLayout())
+      apvts (*this, nullptr, "PARAMS", createParameterLayout()),
+      license (makeLicenseConfig())
 {
     smoothingParam = apvts.getRawParameterValue ("smoothing");
     freezeParam    = apvts.getRawParameterValue ("freeze");

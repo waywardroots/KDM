@@ -16,6 +16,8 @@
 #include "PitchDetector.h"
 #include "TempoEstimator.h"
 
+#include <fuzzyaudio_licensing/fuzzyaudio_licensing.h>
+
 //==============================================================================
 /**
     KeyDetectorAudioProcessor
@@ -119,6 +121,10 @@ public:
     float getBpmConfidence() const noexcept { return publishedBpmConf.load(); }
 
     juce::AudioProcessorValueTreeState apvts;
+
+    /** Offline, machine-locked licensing for this plug-in. The editor shows an
+        UnlockGate over the UI until a valid key is applied. */
+    fuzzyaudio::LicenseManager license;
 
 private:
     //==============================================================================

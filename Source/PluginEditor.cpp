@@ -205,6 +205,22 @@ KeyDetectorAudioProcessorEditor::KeyDetectorAudioProcessorEditor (KeyDetectorAud
 
     setSize (designWidth, designHeight);
     startTimerHz (30);
+
+    showUnlockGateIfLocked();
+}
+
+void KeyDetectorAudioProcessorEditor::showUnlockGateIfLocked()
+{
+    if (processorRef.license.isActivated())
+        return;
+
+    unlockGate = std::make_unique<fuzzyaudio::UnlockGate> (processorRef.license);
+    unlockGate->onUnlockSucceeded = [this]
+    {
+        unlockGate.reset();   // reveal the real UI once a valid key is applied
+    };
+    addAndMakeVisible (*unlockGate);
+    unlockGate->setBounds (getLocalBounds());
 }
 
 KeyDetectorAudioProcessorEditor::~KeyDetectorAudioProcessorEditor()
@@ -226,6 +242,9 @@ void KeyDetectorAudioProcessorEditor::resized()
     content.setBounds (0, 0, designWidth, designHeight);
     content.setTransform (juce::AffineTransform::scale (scale));
     layoutContent();
+
+    if (unlockGate != nullptr)
+        unlockGate->setBounds (getLocalBounds());
 }
 
 void KeyDetectorAudioProcessorEditor::layoutContent()
