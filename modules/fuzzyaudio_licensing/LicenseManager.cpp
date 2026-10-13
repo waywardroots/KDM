@@ -10,6 +10,10 @@ LicenseManager::LicenseManager (Config configToUse)
     options.folderName          = config.vendorName;
     options.osxLibrarySubFolder = "Application Support";
     appProperties.setStorageParameters (options);
+
+    // Restore any previously-saved unlock state from disk. Without this the plug-in
+    // would ask for a key every time it is re-loaded, even after activation.
+    load();
 }
 
 juce::PropertiesFile* LicenseManager::settings()
@@ -57,7 +61,14 @@ juce::StringArray LicenseManager::getLocalMachineIDs()
 
 juce::Result LicenseManager::applyKey (const juce::String& keyFileText)
 {
-    return applyKeyFile (keyFileText.trim());
+    auto result = applyKeyFile (keyFileText.trim());
+
+    // applyKeyFile only updates the in-memory state; persist it so the activation
+    // survives re-loading the plug-in.
+    if (result.wasOk())
+        save();
+
+    return result;
 }
 
 } // namespace fuzzyaudio
