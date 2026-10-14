@@ -167,9 +167,14 @@ struct ContentView: View {
                 HStack(alignment: .top, spacing: 40) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("KEY").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        Text(model.keyText)
-                            .font(.system(size: 44, weight: .bold, design: .rounded))
-                            .foregroundStyle(model.keyIsReliable ? .primary : .secondary)
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text(model.keyText)
+                                .font(.system(size: 44, weight: .bold, design: .rounded))
+                                .foregroundStyle(model.keyIsReliable ? .primary : .secondary)
+                            Text(model.keyAltText)
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
                         Text(model.keyDetail).font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
                     }
                     VStack(alignment: .leading, spacing: 4) {
@@ -187,6 +192,24 @@ struct ContentView: View {
                 Text("Tuner: \(model.tunerText)")
                     .font(.footnote.monospacedDigit())
                     .foregroundStyle(.secondary)
+
+                HStack(spacing: 16) {
+                    Text("Key notation").foregroundStyle(.secondary)
+                    Picker("Key notation", selection: $model.notation) {
+                        ForEach(KeyNotation.allCases) { n in
+                            Text(n.title).tag(n)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 260)
+                    Spacer()
+                }
+
+                if model.notation == .camelot && !model.showMinorKeys {
+                    Text("Major keys only: Camelot codes will all be B. Turn on Detect minor keys to get A codes too.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
 
                 HStack {
                     Toggle("Detect minor keys", isOn: $model.showMinorKeys)

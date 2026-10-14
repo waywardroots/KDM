@@ -24,7 +24,8 @@ final class AnalysisViewModel: ObservableObject {
     @Published private(set) var isStereo = true
     @Published private(set) var hasSignal = false
 
-    @Published private(set) var keyText = "—"
+    @Published private(set) var keyText = "—"        // in the chosen notation
+    @Published private(set) var keyAltText = ""       // the same key in the other notation
     @Published private(set) var keyDetail = "waiting…"
     @Published private(set) var keyIsReliable = false
     @Published private(set) var bpmText = "—"
@@ -32,8 +33,21 @@ final class AnalysisViewModel: ObservableObject {
     @Published private(set) var tunerText = "—"
     @Published private(set) var chroma: [Float] = Array(repeating: 0, count: 12)
 
-    @Published var showMinorKeys = false {
-        didSet { engine.majorOnly = !showMinorKeys; engine.reset() }
+    /// Musical ("C major") or Camelot ("8B"). Remembered between launches.
+    @Published var notation: KeyNotation {
+        didSet {
+            defaults.set(notation.rawValue, forKey: Keys.notation)
+            refreshKeyText()
+        }
+    }
+
+    /// Off = major keys only (like the desktop plug-in). Remembered between launches.
+    @Published var showMinorKeys: Bool {
+        didSet {
+            defaults.set(showMinorKeys, forKey: Keys.showMinorKeys)
+            engine.majorOnly = !showMinorKeys
+            engine.reset()
+        }
     }
 
     private let engine: KDMAnalysisEngine
@@ -42,11 +56,21 @@ final class AnalysisViewModel: ObservableObject {
     private var peakHoldTime = [Date.distantPast, Date.distantPast]
     private var clipTime = [Date.distantPast, Date.distantPast]
     private var lastSignalTime = Date.distantPast
+    private var lastKey: (pitchClass: Int, isMinor: Bool)?   // nil = no reliable key
+    private let defaults = UserDefaults.standard
 
-    nonisolated static let noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    private enum Keys {
+        static let notation = "kdm.key.notation"
+        static let showMinorKeys = "kdm.key.showMinor"
+    }
+
+    nonisolated static let noteNames = KeyNotation.noteNames
 
     init(engine: KDMAnalysisEngine) {
         self.engine = engine
+        let saved = UserDefaults.standard
+        notation = saved.string(forKey: Keys.notation).flatMap(KeyNotation.init(rawValue:)) ?? .musical
+        showMinorKeys = saved.bool(forKey: Keys.showMinorKeys)
         engine.majorOnly = !showMinorKeys
     }
 
@@ -90,15 +114,15 @@ final class AnalysisViewModel: ObservableObject {
         chroma = chromaValues
         let chromaSum = chromaValues.reduce(0, +)
         if s.keyPitchClass >= 0, chromaSum > 1e-4, s.keyCorrelation >= 0.6 {
-            let name = Self.noteNames[s.keyPitchClass % 12]
-            keyText = name + (s.keyIsMinor ? " minor" : " major")
+            lastKey = (s.keyPitchClass, s.keyIsMinor)
             keyDetail = String(format: "corr %.2f  ·  conf %d%%", s.keyCorrelation, Int((s.keyConfidence * 100).rounded()))
             keyIsReliable = true
         } else {
-            keyText = "—"
+            lastKey = nil
             keyDetail = chromaSum > 1e-4 ? "no clear key" : "waiting…"
             keyIsReliable = false
         }
+        refreshKeyText()
 
         // BPM: shown when the tempo estimate is confident enough (>= 0.25).
         if s.bpm > 0, s.bpmConfidence >= 0.25 {
@@ -110,6 +134,16 @@ final class AnalysisViewModel: ObservableObject {
         }
 
         tunerText = Self.tunerString(frequency: s.tunerFrequency)
+    }
+
+    private func refreshKeyText() {
+        guard let key = lastKey else {
+            keyText = "—"
+            keyAltText = ""
+            return
+        }
+        keyText = notation.format(pitchClass: key.pitchClass, isMinor: key.isMinor)
+        keyAltText = notation.alternate.format(pitchClass: key.pitchClass, isMinor: key.isMinor)
     }
 
     private func updated(_ m: Meter, peak: Float, rms: Float, clipped: Bool,

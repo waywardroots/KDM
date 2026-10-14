@@ -47,6 +47,7 @@ iPad/
     ├── AnalysisViewModel.swift   polls results ~30×/s; meter ballistics, key/BPM text
     ├── ContentView.swift         test screen (input picker, meters, read-outs)
     ├── LevelMeterView.swift      dBFS meter with peak hold and clip lamp
+    ├── KeyNotation.swift         Musical / Camelot key names
     ├── Bridge/                   Objective-C++ wrapper so Swift can call the C++ engine
     └── Engine/AnalysisEngine.*   JUCE-free version of the plug-in's analysis pipeline
 ../Source/{ChromaKeyDetector,PitchDetector,TempoEstimator}.*   shared with the plug-in
@@ -59,5 +60,9 @@ iPad/
 - **Hot-plugging:** connecting or removing a device, interruptions (calls, Siri)
   and media-server resets rebuild the audio graph automatically.
 - **Background:** audio keeps running when another app is in front.
-- **Key read-out:** major keys only by default, matching the desktop plug-in.
-  Turn on *Detect minor keys* to report minor keys too.
+- **Key notation:** choose *Musical* ("C major") or *Camelot* ("8B") in the
+  Analysis panel; the other notation is shown small next to it. The choice is
+  remembered.
+- **Minor keys:** major keys only by default, matching the desktop plug-in, so
+  Camelot codes are all "B" until *Detect minor keys* is turned on (also
+  remembered).
