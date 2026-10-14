@@ -1,9 +1,8 @@
-name: Build iPad AUv3 + Standalone
+name: Build iPad app
 
-# Compiles the iPad app (Standalone app with the AUv3 extension embedded) on a
-# macOS runner to catch build breaks. It is NOT code-signed, so the result can't
-# be installed on an iPad - sign and install from Xcode on your Mac instead (see
-# "iPad (AUv3 + Standalone)" in README.md).
+# Compiles the standalone iPad app on a macOS runner to catch build breaks. It
+# is NOT code-signed, so the result can't be installed on an iPad - sign and install from Xcode on your Mac instead (see
+# "iPad app" in README.md).
 
 on:
   push:
@@ -11,7 +10,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  ios-auv3:
+  ios-app:
     runs-on: macos-latest
 
     steps:
@@ -25,7 +24,7 @@ jobs:
           -DCMAKE_SYSTEM_NAME=iOS
           -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0
 
-      - name: Build (Release, unsigned) - Standalone app + AUv3 extension
+      - name: Build (Release, unsigned)
         run: >
           cmake --build build-ios --config Release --target KeyDetector_Standalone --
           -sdk iphoneos
@@ -33,9 +32,8 @@ jobs:
           CODE_SIGNING_REQUIRED=NO
           CODE_SIGN_IDENTITY=""
 
-      - name: Check the AUv3 extension is embedded
+      - name: Check the app was built
         run: |
           APP="$(find build-ios -name 'Key Detector.app' -path '*Release-iphoneos*' | head -1)"
           echo "App: $APP"
-          ls -la "$APP/PlugIns"
-          test -d "$APP/PlugIns/Key Detector.appex"
+          test -n "$APP" && test -f "$APP/Info.plist"

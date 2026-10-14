@@ -372,9 +372,9 @@ void KeyDetectorAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     }
 
    #if JUCE_IOS
-    // In the iPad standalone app the input is the microphone and the output is the
-    // speaker: passing audio through would howl. Output silence there; as an AUv3
-    // effect inside a host the audio still passes through untouched.
+    // The iPad app only listens (to the mixer / interface input). Output silence so
+    // nothing is sent back out, and the built-in mic can never feed back through
+    // the speaker.
     if (wrapperType == wrapperType_Standalone)
         buffer.clear();
    #endif

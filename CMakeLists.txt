@@ -54,11 +54,9 @@ endif()
 # ==============================================================================
 # iPad build.
 #
-# Configure with  -G Xcode -DCMAKE_SYSTEM_NAME=iOS  and the same target becomes an
-# iPad app: a Standalone app that also contains an AUv3 extension, so Key Detector
-# runs on its own (analysing the iPad's microphone / audio interface) AND loads as
-# an effect inside AUv3 hosts (GarageBand, AUM, Logic Pro for iPad, Cubasis...).
-# See "iPad (AUv3 + Standalone)" in README.md.
+# Configure with  -G Xcode -DCMAKE_SYSTEM_NAME=iOS  and the same target becomes a
+# standalone iPad app that analyses an external source (e.g. a DJ mixer's USB
+# audio or a USB audio interface). See "iPad app" in README.md.
 # ==============================================================================
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(KEYDETECTOR_IOS TRUE)
@@ -85,7 +83,7 @@ if(KEYDETECTOR_IOS)
         set(CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "${KEYDETECTOR_IOS_TEAM_ID}")
         set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_STYLE "Automatic")
     endif()
-    set(KEYDETECTOR_FORMATS AUv3 Standalone)
+    set(KEYDETECTOR_FORMATS Standalone)
     # App icon. The App Store needs a 1024x1024 icon: drop one in as
     # Resources/AppIcon.png and it is used instead of the 256px logo.
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Resources/AppIcon.png")
