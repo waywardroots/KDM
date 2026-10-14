@@ -220,4 +220,14 @@ if(KEYDETECTOR_BUILD_TESTS AND NOT KEYDETECTOR_IOS)
         Source/TempoEstimator.cpp)
     target_include_directories(TempoEstimatorTest PRIVATE Source)
     add_test(NAME TempoEstimatorTest COMMAND TempoEstimatorTest)
+
+    # The iPad app's JUCE-free analysis engine (iPad/KDM/Engine).
+    add_executable(AnalysisEngineTest
+        tests/AnalysisEngineTest.cpp
+        iPad/KDM/Engine/AnalysisEngine.cpp
+        Source/ChromaKeyDetector.cpp
+        Source/PitchDetector.cpp
+        Source/TempoEstimator.cpp)
+    target_include_directories(AnalysisEngineTest PRIVATE Source iPad/KDM/Engine)
+    add_test(NAME AnalysisEngineTest COMMAND AnalysisEngineTest)
 endif()

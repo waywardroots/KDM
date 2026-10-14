@@ -1,39 +1,58 @@
 name: Build iPad app
 
-# Compiles the standalone iPad app on a macOS runner to catch build breaks. It
-# is NOT code-signed, so the result can't be installed on an iPad - sign and install from Xcode on your Mac instead (see
-# "iPad app" in README.md).
+# Builds the SwiftUI iPad app in iPad/KDM.xcodeproj on a macOS runner and runs the
+# analysis-engine tests. The app is NOT code-signed, so the result can't be
+# installed on an iPad - open the project in Xcode on your Mac for that (see
+# iPad/README.md).
 
 on:
   push:
     branches: [ main, master ]
+  pull_request:
   workflow_dispatch:
 
 jobs:
-  ios-app:
+  engine-tests:
     runs-on: macos-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure (Xcode, iOS)
-        # ../JUCE isn't present in CI, so CMake downloads JUCE 8.0.9 via FetchContent.
-        run: >
-          cmake -B build-ios -G Xcode
-          -DCMAKE_SYSTEM_NAME=iOS
-          -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0
+      - name: Analysis engine tests (C++, no JUCE)
+        run: |
+          clang++ -std=c++17 -O2 -Wall -Wextra -ISource -IiPad/KDM/Engine \
+            tests/AnalysisEngineTest.cpp iPad/KDM/Engine/AnalysisEngine.cpp \
+            Source/ChromaKeyDetector.cpp Source/PitchDetector.cpp Source/TempoEstimator.cpp \
+            -o analysis-engine-test
+          ./analysis-engine-test
 
-      - name: Build (Release, unsigned)
+  ipad-app:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build (Release, unsigned, generic iPad device)
         run: >
-          cmake --build build-ios --config Release --target KeyDetector_Standalone --
-          -sdk iphoneos
+          xcodebuild
+          -project iPad/KDM.xcodeproj
+          -scheme KDM
+          -configuration Release
+          -destination "generic/platform=iOS"
           CODE_SIGNING_ALLOWED=NO
           CODE_SIGNING_REQUIRED=NO
           CODE_SIGN_IDENTITY=""
+          build
 
-      - name: Check the app was built
-        run: |
-          APP="$(find build-ios -name 'Key Detector.app' -path '*Release-iphoneos*' | head -1)"
-          echo "App: $APP"
-          test -n "$APP" && test -f "$APP/Info.plist"
+      - name: Build (Debug, iPad simulator)
+        run: >
+          xcodebuild
+          -project iPad/KDM.xcodeproj
+          -scheme KDM
+          -configuration Debug
+          -destination "generic/platform=iOS Simulator"
+          CODE_SIGNING_ALLOWED=NO
+          build

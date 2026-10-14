@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Everything else is generated from the target's build settings
+	     (INFOPLIST_KEY_*). This file only adds what those can't express. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<!-- Keep listening to the mixer while another app is in front. -->
+		<string>audio</string>
+	</array>
+</dict>
+</plist>

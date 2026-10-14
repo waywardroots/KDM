@@ -10,7 +10,8 @@ detected key with a confidence read-out, and the **tempo (BPM) estimated from th
 audio** on the channel.
 
 Builds as **VST3**, **AU** (macOS) and **Standalone** (Windows / macOS / Linux), and
-as a standalone **iPad app** — see [iPad app](#ipad-app).
+there is a SwiftUI **iPad app** (KDM) in [`iPad/`](iPad) that uses the same
+analysis code — see [iPad app](#ipad-app).
 
 ![Key Detector UI](docs/ui.png)
 
@@ -174,53 +175,16 @@ Build artefacts land in
 
 ## iPad app
 
-The same project builds a standalone iPad app that analyses an external audio
-source, such as a DJ mixer's USB audio output or a USB audio interface fed from
-the mixer's booth/record out. It outputs silence (it only listens), and the input
-is switched on automatically.
+**KDM**, the iPad app, is a native SwiftUI app in [`iPad/`](iPad) built for
+analysing a DJ mixer's signal (USB audio or an audio interface), with an input
+and channel picker and a level meter. It shares `Source/ChromaKeyDetector`,
+`PitchDetector` and `TempoEstimator` with this plug-in through a JUCE-free
+engine (`iPad/KDM/Engine`). Open `iPad/KDM.xcodeproj` in Xcode — see
+[iPad/README.md](iPad/README.md).
 
-What's different on iPad:
-
-- **Touch read-out:** press and drag a finger on the spectrum to read the peak
-  under it (desktop shows this on mouse hover); lift to hide it.
-- **Layout:** the UI scales to fit any screen size, centred, in landscape or
-  portrait, including Split View / Stage Manager.
-- **No license-key gate:** App Store apps must be sold through the App Store
-  (paid app or In-App Purchase), so the offline key check is compiled out
-  (`KEYDETECTOR_USE_LICENSING=OFF` by default on iOS).
-
-### Build and run on your iPad
-
-You need a Mac with Xcode, CMake ≥ 3.22 and an Apple ID (free is fine for your own
-iPad; a paid Apple Developer account is needed for TestFlight / App Store).
-
-```bash
-cmake -B build-ios -G Xcode \
-      -DCMAKE_SYSTEM_NAME=iOS \
-      -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
-      -DKEYDETECTOR_IOS_TEAM_ID=YOURTEAMID    # Xcode > Settings > Accounts, or developer.apple.com > Membership
-open build-ios/KeyDetector.xcodeproj
-```
-
-In Xcode choose the **KeyDetector_Standalone** scheme, pick your iPad as the run
-destination, and press Run. If signing complains, open the *Signing &
-Capabilities* tab of the `KeyDetector_Standalone` target and pick your team.
-
-The first time it launches, iPadOS asks for microphone permission (this covers
-any audio input, including USB). Connect the mixer or interface before launching.
-
-### Before the App Store
-
-- **Icon:** add a 1024×1024 PNG as `Resources/AppIcon.png` (the 256 px logo is used
-  until then, which App Store Connect will reject as too small).
-- **Bundle ID:** `com.jamesandthecat.keydetector`. Register it in App Store Connect, or change
-  `BUNDLE_ID` in `CMakeLists.txt` first.
-- **Selling:** price it as a paid app, or add In-App Purchase if you want a free
-  download with an unlock.
-- Archive in Xcode (*Product → Archive*) and upload from the Organizer.
-
-The **Build iPad app** GitHub Action compiles the iPad app (unsigned)
-on every push so build breaks are caught early.
+(Configuring this CMake project with `-G Xcode -DCMAKE_SYSTEM_NAME=iOS` still
+produces a JUCE build of the plug-in UI for iPad, but the Swift app is the one
+being developed.)
 
 ## License / Copyright
 

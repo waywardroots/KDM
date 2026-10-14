@@ -29,3 +29,8 @@ Thumbs.db
 *.dylib
 *.vst3
 *.component
+
+# Xcode per-user state / build output (iPad app)
+xcuserdata/
+*.xcuserstate
+DerivedData/

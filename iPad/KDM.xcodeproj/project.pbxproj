@@ -1,0 +1,476 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		06F38A16CCFD4863DF7EED84 = {
+			isa = PBXBuildFile;
+			fileRef = 40316C1E6F51617EB8EAE9B6;
+		};
+		10F038F534F9CCC613720B77 = {
+			isa = PBXBuildFile;
+			fileRef = 5AA7815E7B54DA8491E36B2A;
+		};
+		326C2BE7BC2840F088087908 = {
+			isa = PBXBuildFile;
+			fileRef = 5823FEA9EB6E6EA78168310A;
+		};
+		3A7F4AADBF45FC4088421495 = {
+			isa = PBXBuildFile;
+			fileRef = E263632EB04F558862A811E9;
+		};
+		5B7CE9AA52F4A1956CC18538 = {
+			isa = PBXBuildFile;
+			fileRef = 3DFF63C21213E50289CA3548;
+		};
+		771FD20DF8C1AF5212790DCD = {
+			isa = PBXBuildFile;
+			fileRef = 2B5FE236FC8DD66D751834BC;
+		};
+		B463C3EAD6792CE2AB2850F6 = {
+			isa = PBXBuildFile;
+			fileRef = FEF27823192CDB21ECCB8749;
+		};
+		CCA89B44E28E3A30DAEE4762 = {
+			isa = PBXBuildFile;
+			fileRef = 74177051820D5B837F12F34A;
+		};
+		D24574D25CB39E46DD7AE327 = {
+			isa = PBXBuildFile;
+			fileRef = 9E41DFABE6BDBB37047BBDE6;
+		};
+		FDD5490644E5AE26CCC48A92 = {
+			isa = PBXBuildFile;
+			fileRef = B38F7CAB83C1270106ACAF2C;
+		};
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		101F4EE18F5C918E7FD1E681 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = AnalysisEngine.h;
+			sourceTree = "<group>";
+		};
+		2349641B48A6FFC0ABD201D8 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = "KDM-Bridging-Header.h";
+			sourceTree = "<group>";
+		};
+		29902DF19882080A6FF75616 = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.plist.xml;
+			path = Info.plist;
+			sourceTree = "<group>";
+		};
+		2B5FE236FC8DD66D751834BC = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = ContentView.swift;
+			sourceTree = "<group>";
+		};
+		2ECA2F16C8005FE950908156 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = TempoEstimator.h;
+			sourceTree = "<group>";
+		};
+		3DFF63C21213E50289CA3548 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.cpp.cpp;
+			path = AnalysisEngine.cpp;
+			sourceTree = "<group>";
+		};
+		40316C1E6F51617EB8EAE9B6 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = KDMApp.swift;
+			sourceTree = "<group>";
+		};
+		4CE09A205F7C328896B79953 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = PitchDetector.h;
+			sourceTree = "<group>";
+		};
+		5823FEA9EB6E6EA78168310A = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = LevelMeterView.swift;
+			sourceTree = "<group>";
+		};
+		5AA7815E7B54DA8491E36B2A = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = AnalysisViewModel.swift;
+			sourceTree = "<group>";
+		};
+		74177051820D5B837F12F34A = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.cpp.objcpp;
+			path = KDMAnalysisEngine.mm;
+			sourceTree = "<group>";
+		};
+		9E41DFABE6BDBB37047BBDE6 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.cpp.cpp;
+			path = ChromaKeyDetector.cpp;
+			sourceTree = "<group>";
+		};
+		B38F7CAB83C1270106ACAF2C = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.cpp.cpp;
+			path = PitchDetector.cpp;
+			sourceTree = "<group>";
+		};
+		BF1C073BD81D968BF33879D8 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = KDMAnalysisEngine.h;
+			sourceTree = "<group>";
+		};
+		DA3629ACC9C585C9BC2BD452 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.c.h;
+			path = ChromaKeyDetector.h;
+			sourceTree = "<group>";
+		};
+		E263632EB04F558862A811E9 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.cpp.cpp;
+			path = TempoEstimator.cpp;
+			sourceTree = "<group>";
+		};
+		F5BF48AA40CAD7891EB709FC = {
+			isa = PBXFileReference;
+			explicitFileType = wrapper.application;
+			includeInIndex = 0;
+			path = KDM.app;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		FEF27823192CDB21ECCB8749 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = AudioInputManager.swift;
+			sourceTree = "<group>";
+		};
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C18F88D444D8FE65E18D39E9 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		15FE5F13B372136922FEE801 = {
+			isa = PBXGroup;
+			children = (
+				40316C1E6F51617EB8EAE9B6,
+				2B5FE236FC8DD66D751834BC,
+				FEF27823192CDB21ECCB8749,
+				5AA7815E7B54DA8491E36B2A,
+				5823FEA9EB6E6EA78168310A,
+				4109DB8585B48263D709C856,
+				4FDE07D038078294F37C5375,
+				2349641B48A6FFC0ABD201D8,
+				29902DF19882080A6FF75616,
+			);
+			path = KDM;
+			sourceTree = "<group>";
+		};
+		2AC8BA37DAC32D5437812408 = {
+			isa = PBXGroup;
+			children = (
+				F5BF48AA40CAD7891EB709FC,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		4109DB8585B48263D709C856 = {
+			isa = PBXGroup;
+			children = (
+				BF1C073BD81D968BF33879D8,
+				74177051820D5B837F12F34A,
+			);
+			path = Bridge;
+			sourceTree = "<group>";
+		};
+		4EAE695AD1F489F78EA3E1C6 = {
+			isa = PBXGroup;
+			children = (
+				15FE5F13B372136922FEE801,
+				9D10A42589C8F5479091BEBD,
+				2AC8BA37DAC32D5437812408,
+			);
+			sourceTree = "<group>";
+		};
+		4FDE07D038078294F37C5375 = {
+			isa = PBXGroup;
+			children = (
+				101F4EE18F5C918E7FD1E681,
+				3DFF63C21213E50289CA3548,
+			);
+			path = Engine;
+			sourceTree = "<group>";
+		};
+		9D10A42589C8F5479091BEBD = {
+			isa = PBXGroup;
+			children = (
+				DA3629ACC9C585C9BC2BD452,
+				9E41DFABE6BDBB37047BBDE6,
+				4CE09A205F7C328896B79953,
+				B38F7CAB83C1270106ACAF2C,
+				2ECA2F16C8005FE950908156,
+				E263632EB04F558862A811E9,
+			);
+			name = "Shared DSP (../Source)";
+			path = ../Source;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AB2740C07BD809A1EC16D47B = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E589D98E9C10B6E6EF092B1C;
+			buildPhases = (
+				C4D5163706E5908DC9E032F3,
+				C18F88D444D8FE65E18D39E9,
+				4FDAD6DB49035FA75C21467D,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KDM;
+			productName = KDM;
+			productReference = F5BF48AA40CAD7891EB709FC;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		46F86FAA6BBF9AC94A7E4595 = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					AB2740C07BD809A1EC16D47B = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = B61A476A5531CC175278BDCF;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 4EAE695AD1F489F78EA3E1C6;
+			productRefGroup = 2AC8BA37DAC32D5437812408;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AB2740C07BD809A1EC16D47B,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		4FDAD6DB49035FA75C21467D = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C4D5163706E5908DC9E032F3 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				06F38A16CCFD4863DF7EED84,
+				771FD20DF8C1AF5212790DCD,
+				B463C3EAD6792CE2AB2850F6,
+				10F038F534F9CCC613720B77,
+				326C2BE7BC2840F088087908,
+				CCA89B44E28E3A30DAEE4762,
+				5B7CE9AA52F4A1956CC18538,
+				D24574D25CB39E46DD7AE327,
+				FDD5490644E5AE26CCC48A92,
+				3A7F4AADBF45FC4088421495,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		03DD51312A9DE8E4A570DD7D = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../Source",
+					"$(SRCROOT)/KDM/Engine",
+					"$(SRCROOT)/KDM/Bridge",
+				);
+				INFOPLIST_FILE = KDM/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = KDM;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "KDM listens to the audio input (your DJ mixer or audio interface) to detect the musical key and tempo. Audio is analysed on the iPad and never recorded or sent anywhere.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jamesandthecat.kdm;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "KDM/KDM-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Release;
+		};
+		08723DE70035A45CE7E33CC1 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				GCC_OPTIMIZATION_LEVEL = s;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		80DB6ACE13380ADC3D86D6C5 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 2;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		B373EA90B6F23CCAEDAF6FEE = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../Source",
+					"$(SRCROOT)/KDM/Engine",
+					"$(SRCROOT)/KDM/Bridge",
+				);
+				INFOPLIST_FILE = KDM/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = KDM;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "KDM listens to the audio input (your DJ mixer or audio interface) to detect the musical key and tempo. Audio is analysed on the iPad and never recorded or sent anywhere.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jamesandthecat.kdm;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "KDM/KDM-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B61A476A5531CC175278BDCF = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				80DB6ACE13380ADC3D86D6C5,
+				08723DE70035A45CE7E33CC1,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E589D98E9C10B6E6EF092B1C = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B373EA90B6F23CCAEDAF6FEE,
+				03DD51312A9DE8E4A570DD7D,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 46F86FAA6BBF9AC94A7E4595;
+}
