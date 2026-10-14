@@ -172,11 +172,14 @@ final class AudioInputManager: ObservableObject {
         try session.setCategory(.record, mode: .measurement, options: [])
         try session.setActive(true)
 
-        // Use the input the user picked last time, if it's plugged in. Otherwise
-        // leave iPadOS's choice (it switches to a newly connected USB device).
+        // Use the input the user picked last time if it's plugged in; otherwise
+        // prefer a USB device (mixer / interface) over the built-in mic.
+        let available = session.availableInputs ?? []
         if let uid = defaults.string(forKey: Keys.inputUID),
-           let port = session.availableInputs?.first(where: { $0.uid == uid }) {
+           let port = available.first(where: { $0.uid == uid }) {
             try session.setPreferredInput(port)
+        } else if let usb = available.first(where: { $0.portType == .usbAudio }) {
+            try session.setPreferredInput(usb)
         }
 
         // iPadOS only opens 2 input channels unless asked for more. Ask for all of
