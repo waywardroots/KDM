@@ -89,6 +89,8 @@ final class AudioInputManager: ObservableObject {
     @Published private(set) var channelNames: [String] = []
     @Published private(set) var channelSelection: ChannelSelection = .stereo(left: 0)
     @Published private(set) var sampleRate: Double = 0
+    /// What iPadOS reports about audio inputs, for the diagnostics panel.
+    @Published private(set) var diagnostics: [String] = []
 
     var channelOptions: [ChannelSelection] { ChannelSelection.options(forChannelCount: channelCount) }
 
@@ -136,6 +138,7 @@ final class AudioInputManager: ObservableObject {
         } catch {
             status = .failed(error.localizedDescription)
         }
+        updateDiagnostics()
     }
 
     // MARK: - User choices
@@ -198,6 +201,30 @@ final class AudioInputManager: ObservableObject {
         let routeInput = session.currentRoute.inputs.first
         currentInputID = routeInput?.uid
         channelNames = routeInput?.channels?.map(\.channelName) ?? []
+        updateDiagnostics()
+    }
+
+    func updateDiagnostics() {
+        let session = AVAudioSession.sharedInstance()
+        var lines: [String] = []
+        let available = session.availableInputs ?? []
+        lines.append("Inputs iPadOS offers: \(available.count)")
+        for port in available {
+            let ch = port.channels?.count ?? 0
+            lines.append("  • \(port.portName) — \(Self.kindLabel(port.portType)) [\(port.portType.rawValue)], \(ch) ch")
+        }
+        let route = session.currentRoute
+        lines.append("Current route inputs: " + (route.inputs.isEmpty ? "none"
+            : route.inputs.map { "\($0.portName) (\($0.channels?.count ?? 0) ch)" }.joined(separator: ", ")))
+        lines.append("Current route outputs: " + (route.outputs.isEmpty ? "none"
+            : route.outputs.map { "\($0.portName) [\($0.portType.rawValue)]" }.joined(separator: ", ")))
+        lines.append(String(format: "Input available: %@ · channels %d of max %d · %.0f Hz",
+                            session.isInputAvailable ? "yes" : "no",
+                            session.inputNumberOfChannels,
+                            session.maximumInputNumberOfChannels,
+                            session.sampleRate))
+        lines.append("Category: \(session.category.rawValue) · mode: \(session.mode.rawValue)")
+        diagnostics = lines
     }
 
     private func startEngine() throws {

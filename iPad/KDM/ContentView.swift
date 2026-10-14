@@ -19,6 +19,7 @@ struct ContentView: View {
                 inputCard
                 meterCard
                 readoutCard
+                diagnosticsCard
             }
             .padding(24)
             .frame(maxWidth: 900)
@@ -218,6 +219,31 @@ struct ContentView: View {
                     Button("Reset key") { model.resetKey() }
                         .buttonStyle(.bordered)
                 }
+            }
+        }
+    }
+
+    // MARK: - Diagnostics
+
+    @State private var showDiagnostics = true
+
+    private var diagnosticsCard: some View {
+        Card(title: "Audio diagnostics") {
+            VStack(alignment: .leading, spacing: 10) {
+                DisclosureGroup("What iPadOS reports", isExpanded: $showDiagnostics) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(audio.diagnostics.enumerated()), id: \.offset) { _, line in
+                            Text(line)
+                                .font(.system(.footnote, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 6)
+                }
+                Button("Re-scan audio devices") { audio.restart() }
+                    .buttonStyle(.bordered)
             }
         }
     }
