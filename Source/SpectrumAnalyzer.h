@@ -33,6 +33,11 @@ public:
 
     void mouseMove  (const juce::MouseEvent& e) override;
     void mouseExit  (const juce::MouseEvent& e) override;
+    // Touch screens have no hover: press/drag a finger on the spectrum to read
+    // the peak under it, lift to hide it again.
+    void mouseDown  (const juce::MouseEvent& e) override;
+    void mouseDrag  (const juce::MouseEvent& e) override;
+    void mouseUp    (const juce::MouseEvent& e) override;
 
     /** Force the hover read-out at a given x (used for tests / documentation shots). */
     void showHoverAt (int x) { hoverX = x; hovering = true; repaint(); }

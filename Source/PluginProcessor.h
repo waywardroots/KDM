@@ -16,7 +16,17 @@
 #include "PitchDetector.h"
 #include "TempoEstimator.h"
 
-#include <fuzzyaudio_licensing/fuzzyaudio_licensing.h>
+// Licensing is compiled in for desktop builds and out of the iPad (App Store)
+// build - see KEYDETECTOR_USE_LICENSING in CMakeLists.txt.
+#ifndef KEYDETECTOR_USE_LICENSING
+ #define KEYDETECTOR_USE_LICENSING 1
+#endif
+
+#if KEYDETECTOR_USE_LICENSING
+ #include <fuzzyaudio_licensing/fuzzyaudio_licensing.h>
+#else
+ #include <juce_audio_utils/juce_audio_utils.h>
+#endif
 
 //==============================================================================
 /**
@@ -124,7 +134,9 @@ public:
 
     /** Offline, machine-locked licensing for this plug-in. The editor shows an
         UnlockGate over the UI until a valid key is applied. */
+   #if KEYDETECTOR_USE_LICENSING
     fuzzyaudio::LicenseManager license;
+   #endif
 
 private:
     //==============================================================================

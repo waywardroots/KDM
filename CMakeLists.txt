@@ -51,8 +51,53 @@ if(NOT KEYDETECTOR_AAX_SDK_PATH AND DEFINED ENV{AAX_SDK_PATH})
     set(KEYDETECTOR_AAX_SDK_PATH "$ENV{AAX_SDK_PATH}")
 endif()
 
-set(KEYDETECTOR_FORMATS AU VST3 Standalone)
-if(KEYDETECTOR_AAX_SDK_PATH AND EXISTS "${KEYDETECTOR_AAX_SDK_PATH}")
+# ==============================================================================
+# iPad build.
+#
+# Configure with  -G Xcode -DCMAKE_SYSTEM_NAME=iOS  and the same target becomes an
+# iPad app: a Standalone app that also contains an AUv3 extension, so Key Detector
+# runs on its own (analysing the iPad's microphone / audio interface) AND loads as
+# an effect inside AUv3 hosts (GarageBand, AUM, Logic Pro for iPad, Cubasis...).
+# See "iPad (AUv3 + Standalone)" in README.md.
+# ==============================================================================
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(KEYDETECTOR_IOS TRUE)
+else()
+    set(KEYDETECTOR_IOS FALSE)
+endif()
+
+# Desktop builds are unlocked with the offline license-key module. App Store apps
+# must be sold through the App Store (paid app or In-App Purchase), so the key gate
+# is compiled out of the iPad build by default.
+if(KEYDETECTOR_IOS)
+    option(KEYDETECTOR_USE_LICENSING "Require a Fuzzy Audio license key to unlock" OFF)
+else()
+    option(KEYDETECTOR_USE_LICENSING "Require a Fuzzy Audio license key to unlock" ON)
+endif()
+
+if(KEYDETECTOR_IOS)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum iPadOS version")
+    # Your Apple Developer Team ID (10 characters, from developer.apple.com ->
+    # Membership). Needed to sign and run on a real iPad; leave empty for a
+    # compile-only (unsigned) build such as CI.
+    set(KEYDETECTOR_IOS_TEAM_ID "" CACHE STRING "Apple Developer Team ID for code signing")
+    if(KEYDETECTOR_IOS_TEAM_ID)
+        set(CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "${KEYDETECTOR_IOS_TEAM_ID}")
+        set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_STYLE "Automatic")
+    endif()
+    set(KEYDETECTOR_FORMATS AUv3 Standalone)
+    # App icon. The App Store needs a 1024x1024 icon: drop one in as
+    # Resources/AppIcon.png and it is used instead of the 256px logo.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Resources/AppIcon.png")
+        set(KEYDETECTOR_IOS_ICON_ARGS ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Resources/AppIcon.png")
+    else()
+        set(KEYDETECTOR_IOS_ICON_ARGS ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Resources/logo.png")
+    endif()
+else()
+    set(KEYDETECTOR_FORMATS AU VST3 Standalone)
+endif()
+
+if(NOT KEYDETECTOR_IOS AND KEYDETECTOR_AAX_SDK_PATH AND EXISTS "${KEYDETECTOR_AAX_SDK_PATH}")
     message(STATUS "KeyDetector: AAX enabled (SDK at ${KEYDETECTOR_AAX_SDK_PATH})")
     juce_set_aax_sdk_path("${KEYDETECTOR_AAX_SDK_PATH}")
     list(APPEND KEYDETECTOR_FORMATS AAX)
@@ -84,7 +129,19 @@ juce_add_plugin(KeyDetector
     AU_MAIN_TYPE                "kAudioUnitType_Effect"
     AAX_CATEGORY                "AAX_ePlugInCategory_Effect"
     FORMATS                     ${KEYDETECTOR_FORMATS}
-    PRODUCT_NAME                "Key Detector")
+    PRODUCT_NAME                "Key Detector"
+    # --- iPad-only settings (ignored by desktop builds) -------------------------
+    TARGETED_DEVICE_FAMILY      "2"                  # iPad
+    MICROPHONE_PERMISSION_ENABLED TRUE
+    MICROPHONE_PERMISSION_TEXT  "Key Detector listens to incoming audio to detect its musical key, pitch and tempo. Audio is analysed on the device and never recorded or sent anywhere."
+    BACKGROUND_AUDIO_ENABLED    TRUE                 # keep analysing when the app is backgrounded
+    STATUS_BAR_HIDDEN           TRUE
+    REQUIRES_FULL_SCREEN        FALSE                # allow Split View / Stage Manager
+    IPAD_SCREEN_ORIENTATIONS    UIInterfaceOrientationLandscapeLeft
+                                UIInterfaceOrientationLandscapeRight
+                                UIInterfaceOrientationPortrait
+                                UIInterfaceOrientationPortraitUpsideDown
+    ${KEYDETECTOR_IOS_ICON_ARGS})
 
 target_sources(KeyDetector PRIVATE
     Source/PluginProcessor.cpp
@@ -105,10 +162,16 @@ target_compile_definitions(KeyDetector PUBLIC
 # file name to swap it.
 juce_add_binary_data(KeyDetectorAssets SOURCES Resources/logo.png)
 
+if(KEYDETECTOR_USE_LICENSING)
+    target_compile_definitions(KeyDetector PUBLIC KEYDETECTOR_USE_LICENSING=1)
+    target_link_libraries(KeyDetector PRIVATE fuzzyaudio_licensing)
+else()
+    target_compile_definitions(KeyDetector PUBLIC KEYDETECTOR_USE_LICENSING=0)
+endif()
+
 target_link_libraries(KeyDetector
     PRIVATE
         KeyDetectorAssets
-        fuzzyaudio_licensing
         juce::juce_audio_utils
         juce::juce_dsp
     PUBLIC
@@ -122,7 +185,7 @@ target_link_libraries(KeyDetector
 # tool you run on your server (or port to your website) to mint keys.
 # ==============================================================================
 option(KEYDETECTOR_BUILD_KEYGEN "Build the license key generator CLI" OFF)
-if(KEYDETECTOR_BUILD_KEYGEN)
+if(KEYDETECTOR_BUILD_KEYGEN AND NOT KEYDETECTOR_IOS)
     juce_add_console_app(KeyDetectorKeygen PRODUCT_NAME "keydetector-keygen")
     target_sources(KeyDetectorKeygen PRIVATE tools/keygen/keygen.cpp)
     target_compile_definitions(KeyDetectorKeygen PRIVATE
@@ -140,7 +203,7 @@ endif()
 # Standalone DSP unit test — pure C++17, links no JUCE, so it always builds and
 # runs quickly (ctest).
 # ==============================================================================
-if(KEYDETECTOR_BUILD_TESTS)
+if(KEYDETECTOR_BUILD_TESTS AND NOT KEYDETECTOR_IOS)
     enable_testing()
     add_executable(ChromaKeyDetectorTest
         tests/ChromaKeyDetectorTest.cpp

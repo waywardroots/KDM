@@ -6,6 +6,11 @@
 #include "PluginEditor.h"
 #include "BinaryData.h"
 
+#if JUCE_IOS && JucePlugin_Build_Standalone
+ // Lets the iPad standalone app switch its microphone input on (see below).
+ #include <juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h>
+#endif
+
 //==============================================================================
 KeyDetectorAudioProcessorEditor::KeyDetectorAudioProcessorEditor (KeyDetectorAudioProcessor& p)
     : AudioProcessorEditor (&p), processorRef (p)
@@ -197,20 +202,44 @@ KeyDetectorAudioProcessorEditor::KeyDetectorAudioProcessorEditor (KeyDetectorAud
 
     // Make the editor resizable (corner grip + host edge-resize), keeping the
     // original aspect ratio so the scaled layout always fits.
+   #if JUCE_IOS
+    // On iPad the size comes from the screen (standalone) or the AUv3 host's
+    // plug-in window, in any shape. No corner grip; resized() letterboxes the
+    // scaled UI so it always fits whole.
+    setResizable (true, false);
+    setResizeLimits (designWidth / 2, designHeight / 2, designWidth * 4, designHeight * 4);
+   #else
     setResizable (true, true);
     setResizeLimits (designWidth * 3 / 4, designHeight * 3 / 4,  // 0.75x
                      designWidth * 2,     designHeight * 2);     // 2x
     if (auto* c = getConstrainer())
         c->setFixedAspectRatio ((double) designWidth / (double) designHeight);
+   #endif
 
     setSize (designWidth, designHeight);
     startTimerHz (30);
 
     showUnlockGateIfLocked();
+
+   #if JUCE_IOS && JucePlugin_Build_Standalone
+    // JUCE's standalone wrapper starts with the microphone muted (to avoid
+    // feedback) and shows an "Unmute Input" banner. A key detector is useless
+    // without input, and the processor sends silence to the speaker in the iPad
+    // standalone app, so there is no feedback risk: switch the input on.
+    if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
+    {
+        juce::MessageManager::callAsync ([]
+        {
+            if (auto* holder = juce::StandalonePluginHolder::getInstance())
+                holder->getMuteInputValue().setValue (false);
+        });
+    }
+   #endif
 }
 
 void KeyDetectorAudioProcessorEditor::showUnlockGateIfLocked()
 {
+   #if KEYDETECTOR_USE_LICENSING
     if (processorRef.license.isActivated())
         return;
 
@@ -221,6 +250,7 @@ void KeyDetectorAudioProcessorEditor::showUnlockGateIfLocked()
     };
     addAndMakeVisible (*unlockGate);
     unlockGate->setBounds (getLocalBounds());
+   #endif
 }
 
 KeyDetectorAudioProcessorEditor::~KeyDetectorAudioProcessorEditor()
@@ -238,13 +268,21 @@ void KeyDetectorAudioProcessorEditor::paint (juce::Graphics& g)
 void KeyDetectorAudioProcessorEditor::resized()
 {
     // Scale the fixed-size content to fill the current (resizable) editor.
-    const float scale = (float) getWidth() / (float) designWidth;
+    // Uniform scale that fits both dimensions, centred (letterboxed) in whatever
+    // space is left over. With the desktop's fixed aspect ratio this is identical
+    // to scaling by width; on iPad it copes with any screen/host window shape.
+    const float scale = juce::jmin ((float) getWidth()  / (float) designWidth,
+                                    (float) getHeight() / (float) designHeight);
+    const float offX  = 0.5f * ((float) getWidth()  - scale * (float) designWidth);
+    const float offY  = 0.5f * ((float) getHeight() - scale * (float) designHeight);
     content.setBounds (0, 0, designWidth, designHeight);
-    content.setTransform (juce::AffineTransform::scale (scale));
+    content.setTransform (juce::AffineTransform::scale (scale).translated (offX, offY));
     layoutContent();
 
+   #if KEYDETECTOR_USE_LICENSING
     if (unlockGate != nullptr)
         unlockGate->setBounds (getLocalBounds());
+   #endif
 }
 
 void KeyDetectorAudioProcessorEditor::layoutContent()

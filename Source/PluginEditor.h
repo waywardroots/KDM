@@ -83,7 +83,9 @@ private:
 
     std::vector<float> spectrumScratch; // reused each timer tick
 
+   #if KEYDETECTOR_USE_LICENSING
     std::unique_ptr<fuzzyaudio::UnlockGate> unlockGate; // shown while unlicensed
+   #endif
 
     // Tap-tempo + BPM hold/fine-tune state (UI-side).
     std::vector<double> tapTimes;        // recent tap timestamps (ms)

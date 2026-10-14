@@ -204,6 +204,25 @@ void SpectrumDisplay::mouseExit (const juce::MouseEvent&)
     repaint();
 }
 
+void SpectrumDisplay::mouseDown (const juce::MouseEvent& e)
+{
+    mouseMove (e);
+}
+
+void SpectrumDisplay::mouseDrag (const juce::MouseEvent& e)
+{
+    hoverX = juce::jlimit (0, juce::jmax (0, getWidth() - 1), e.x);
+    hovering = true;
+    repaint();
+}
+
+void SpectrumDisplay::mouseUp (const juce::MouseEvent& e)
+{
+    // A mouse keeps hovering after a click; a finger is gone once lifted.
+    if (e.source.isTouch())
+        mouseExit (e);
+}
+
 void SpectrumDisplay::paintHoverReadout (juce::Graphics& g)
 {
     if (! hovering || mags.size() < 4 || sampleRate <= 0.0)

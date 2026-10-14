@@ -9,6 +9,7 @@
 #include <cmath>
 
 //==============================================================================
+#if KEYDETECTOR_USE_LICENSING
 namespace
 {
     // Builds the licensing configuration for this product. To reuse the licensing
@@ -34,14 +35,17 @@ namespace
         return c;
     }
 }
+#endif
 
 //==============================================================================
 KeyDetectorAudioProcessor::KeyDetectorAudioProcessor()
     : AudioProcessor (BusesProperties()
                           .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
                           .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      apvts (*this, nullptr, "PARAMS", createParameterLayout()),
-      license (makeLicenseConfig())
+      apvts (*this, nullptr, "PARAMS", createParameterLayout())
+     #if KEYDETECTOR_USE_LICENSING
+      , license (makeLicenseConfig())
+     #endif
 {
     smoothingParam = apvts.getRawParameterValue ("smoothing");
     freezeParam    = apvts.getRawParameterValue ("freeze");
@@ -366,6 +370,14 @@ void KeyDetectorAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         publishedBpm.store     ((double) tempoEstimator.getBpm());
         publishedBpmConf.store (tempoEstimator.getConfidence());
     }
+
+   #if JUCE_IOS
+    // In the iPad standalone app the input is the microphone and the output is the
+    // speaker: passing audio through would howl. Output silence there; as an AUv3
+    // effect inside a host the audio still passes through untouched.
+    if (wrapperType == wrapperType_Standalone)
+        buffer.clear();
+   #endif
 }
 
 //==============================================================================

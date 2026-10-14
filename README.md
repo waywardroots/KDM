@@ -9,7 +9,8 @@ is played. The UI shows a live spectrum analyser, the chroma bars, the tuner, th
 detected key with a confidence read-out, and the **tempo (BPM) estimated from the
 audio** on the channel.
 
-Builds as **VST3**, **AU** (macOS) and **Standalone** (Windows / macOS / Linux).
+Builds as **VST3**, **AU** (macOS) and **Standalone** (Windows / macOS / Linux), and
+as an **iPad app** (AUv3 + Standalone) — see [iPad (AUv3 + Standalone)](#ipad-auv3--standalone).
 
 ![Key Detector UI](docs/ui.png)
 
@@ -170,6 +171,63 @@ sudo apt-get install libasound2-dev libx11-dev libxext-dev libxrandr-dev \
 Build artefacts land in
 `build/KeyDetector_artefacts/Release/VST3/Key Detector.vst3` and
 `.../Standalone/Key Detector`.
+
+## iPad (AUv3 + Standalone)
+
+The same project builds an iPad app. One install gives you both:
+
+- **Key Detector app** — runs on its own and analyses the iPad's microphone (or a
+  connected audio interface). It outputs silence so the mic can't feed back
+  through the speaker, and the input is switched on automatically.
+- **Key Detector AUv3 effect** — appears in AUv3 hosts (GarageBand, AUM, Logic Pro
+  for iPad, Cubasis…) as an audio effect; insert it on a track and it analyses the
+  track and passes the audio through unchanged, like the desktop plug-in.
+
+What's different on iPad:
+
+- **Touch read-out:** press and drag a finger on the spectrum to read the peak
+  under it (desktop shows this on mouse hover); lift to hide it.
+- **Layout:** the UI scales to fit any screen or host window size, centred, in
+  landscape or portrait, including Split View / Stage Manager.
+- **No license-key gate:** App Store apps must be sold through the App Store
+  (paid app or In-App Purchase), so the offline key check is compiled out
+  (`KEYDETECTOR_USE_LICENSING=OFF` by default on iOS).
+
+### Build and run on your iPad
+
+You need a Mac with Xcode, CMake ≥ 3.22 and an Apple ID (free is fine for your own
+iPad; a paid Apple Developer account is needed for TestFlight / App Store).
+
+```bash
+cmake -B build-ios -G Xcode \
+      -DCMAKE_SYSTEM_NAME=iOS \
+      -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+      -DKEYDETECTOR_IOS_TEAM_ID=YOURTEAMID    # Xcode > Settings > Accounts, or developer.apple.com > Membership
+open build-ios/KeyDetector.xcodeproj
+```
+
+In Xcode choose the **KeyDetector_Standalone** scheme, pick your iPad as the run
+destination, and press Run. The AUv3 extension is built and embedded
+automatically. If signing complains, open the *Signing & Capabilities* tab of both
+the `KeyDetector_Standalone` and `KeyDetector_AUv3` targets and pick your team.
+
+The first time it launches, iPadOS asks for microphone permission. To use the
+AUv3, open a host (e.g. GarageBand → Audio Recorder → plug-ins, or AUM) and look
+for **Fuzzy Audio → Key Detector** in its effect list.
+
+### Before the App Store
+
+- **Icon:** add a 1024×1024 PNG as `Resources/AppIcon.png` (the 256 px logo is used
+  until then, which App Store Connect will reject as too small).
+- **Bundle ID:** `com.jamesandthecat.keydetector` (the AUv3 is
+  `…keydetector.keydetectorAUv3`). Register it in App Store Connect, or change
+  `BUNDLE_ID` in `CMakeLists.txt` first.
+- **Selling:** price it as a paid app, or add In-App Purchase if you want a free
+  download with an unlock.
+- Archive in Xcode (*Product → Archive*) and upload from the Organizer.
+
+The **Build iPad AUv3 + Standalone** GitHub Action compiles the iPad app (unsigned)
+on every push so build breaks are caught early.
 
 ## License / Copyright
 
