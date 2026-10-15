@@ -1,11 +1,14 @@
 import SwiftUI
 import UIKit
 
-/// Test screen for the input picker and meter. Deliberately plain: the real
-/// interface comes with the redesign.
+/// Main screen: header (logo, KDM, signal status, Inputs button), level meter
+/// and the key / BPM read-outs. Input selection and diagnostics live in the
+/// Inputs panel.
 struct ContentView: View {
     @ObservedObject var audio: AudioInputManager
     @ObservedObject var model: AnalysisViewModel
+
+    @State private var showInputs = false
 
     var body: some View {
         ScrollView {
@@ -16,10 +19,8 @@ struct ContentView: View {
                 case .failed(let message): messageCard("Audio couldn't start", message)
                 default: EmptyView()
                 }
-                inputCard
                 meterCard
                 readoutCard
-                diagnosticsCard
             }
             .padding(24)
             .frame(maxWidth: 900)
@@ -43,8 +44,39 @@ struct ContentView: View {
             Text("KDM")
                 .font(.largeTitle.weight(.bold))
             Spacer()
-            statusBadge
+            VStack(alignment: .trailing, spacing: 2) {
+                statusBadge
+                Text(sourceSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            inputsButton
         }
+    }
+
+    private var inputsButton: some View {
+        Button {
+            showInputs = true
+        } label: {
+            Label("Inputs", systemImage: "cable.connector")
+                .font(.body.weight(.semibold))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+        }
+        .buttonStyle(.bordered)
+        .popover(isPresented: $showInputs, arrowEdge: .top) {
+            InputsPanel(audio: audio, model: model) { showInputs = false }
+                .frame(minWidth: 520, idealWidth: 560, minHeight: 480, idealHeight: 620)
+        }
+        .accessibilityHint("Choose the input source and channels, and see audio diagnostics")
+    }
+
+    /// e.g. "X1800 Prime · Channels 9 + 10", shown under the status badge.
+    private var sourceSummary: String {
+        guard let input = audio.currentInput else { return "No input" }
+        guard audio.channelCount > 0 else { return input.name }
+        return "\(input.name) · \(audio.channelSelection.label)"
     }
 
     private var statusBadge: some View {
@@ -61,92 +93,6 @@ struct ContentView: View {
             .font(.callout.weight(.semibold))
             .foregroundStyle(color)
             .labelStyle(.titleAndIcon)
-    }
-
-    // MARK: - Input picker
-
-    private var inputCard: some View {
-        Card(title: "Input") {
-            VStack(alignment: .leading, spacing: 14) {
-                LabeledRow("Source") {
-                    Menu {
-                        ForEach(audio.inputs) { input in
-                            Button {
-                                audio.selectInput(input)
-                            } label: {
-                                if input.id == audio.currentInputID {
-                                    Label("\(input.name) (\(input.kind))", systemImage: "checkmark")
-                                } else {
-                                    Text("\(input.name) (\(input.kind))")
-                                }
-                            }
-                        }
-                    } label: {
-                        menuLabel(audio.currentInput.map { "\($0.name) (\($0.kind))" } ?? "None")
-                    }
-                    .disabled(audio.inputs.isEmpty)
-                }
-
-                LabeledRow("Channels") {
-                    Menu {
-                        ForEach(audio.channelOptions, id: \.self) { option in
-                            Button {
-                                audio.selectChannels(option)
-                            } label: {
-                                if option == audio.channelSelection {
-                                    Label(channelLabel(option), systemImage: "checkmark")
-                                } else {
-                                    Text(channelLabel(option))
-                                }
-                            }
-                        }
-                    } label: {
-                        menuLabel(audio.channelCount > 0 ? channelLabel(audio.channelSelection) : "—")
-                    }
-                    .disabled(audio.channelCount == 0)
-                }
-
-                Text(deviceSummary)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-
-                if audio.status == .running && !model.hasSignal {
-                    Text("Nothing above \(Int(AnalysisViewModel.signalThresholdDb)) dBFS on these channels. Check the cable, the mixer's USB/record send, and try another channel pair.")
-                        .font(.footnote)
-                        .foregroundStyle(.orange)
-                }
-            }
-        }
-    }
-
-    private var deviceSummary: String {
-        guard audio.channelCount > 0 else { return "No audio input available. Connect the mixer or audio interface." }
-        let rate = audio.sampleRate.truncatingRemainder(dividingBy: 1000) == 0
-            ? String(format: "%.0f kHz", audio.sampleRate / 1000)
-            : String(format: "%.1f kHz", audio.sampleRate / 1000)
-        return "\(audio.channelCount) input channel\(audio.channelCount == 1 ? "" : "s") at \(rate)"
-    }
-
-    /// "Channels 3 + 4 — USB In 3 / USB In 4" when iPadOS reports channel names.
-    private func channelLabel(_ option: ChannelSelection) -> String {
-        let names = audio.channelNames
-        let l = option.leftIndex
-        guard l < names.count else { return option.label }
-        if let r = option.rightIndex, r < names.count {
-            return "\(option.label) — \(names[l]) / \(names[r])"
-        }
-        return "\(option.label) — \(names[l])"
-    }
-
-    private func menuLabel(_ text: String) -> some View {
-        HStack {
-            Text(text).lineLimit(1)
-            Spacer(minLength: 8)
-            Image(systemName: "chevron.up.chevron.down").font(.footnote)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.08)))
     }
 
     // MARK: - Meter
@@ -230,31 +176,6 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Diagnostics
-
-    @State private var showDiagnostics = true
-
-    private var diagnosticsCard: some View {
-        Card(title: "Audio diagnostics") {
-            VStack(alignment: .leading, spacing: 10) {
-                DisclosureGroup("What iPadOS reports", isExpanded: $showDiagnostics) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(Array(audio.diagnostics.enumerated()), id: \.offset) { _, line in
-                            Text(line)
-                                .font(.system(.footnote, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 6)
-                }
-                Button("Re-scan audio devices") { audio.restart() }
-                    .buttonStyle(.bordered)
-            }
-        }
-    }
-
     // MARK: - Messages
 
     private var permissionCard: some View {
@@ -310,7 +231,7 @@ struct ChromaBarsView: View {
 
 // MARK: - Small layout helpers
 
-private struct Card<Content: View>: View {
+struct Card<Content: View>: View {
     let title: String
     @ViewBuilder let content: Content
 
@@ -327,7 +248,7 @@ private struct Card<Content: View>: View {
     }
 }
 
-private struct LabeledRow<Content: View>: View {
+struct LabeledRow<Content: View>: View {
     let label: String
     let content: Content
 

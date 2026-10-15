@@ -22,6 +22,8 @@ If Xcode says the bundle identifier is taken, change
 Connect the mixer's USB (or the audio interface) to the iPad before or after
 launching. Then:
 
+Tap **Inputs** (top right) to open the input panel, then:
+
 - **Source:** pick the mixer / interface. The built-in mic is listed too, which
   is handy for a quick test with music playing in the room.
 - **Channels:** pick the channel pair carrying the audio you want analysed. USB
@@ -45,7 +47,8 @@ iPad/
     ├── KDMApp.swift              app entry point
     ├── AudioInputManager.swift   audio session, input/channel picking, AVAudioEngine tap
     ├── AnalysisViewModel.swift   polls results ~30×/s; meter ballistics, key/BPM text
-    ├── ContentView.swift         test screen (input picker, meters, read-outs)
+    ├── ContentView.swift         main screen (header, meter, key/BPM read-outs)
+    ├── InputsPanel.swift         Inputs panel: source/channel pickers + audio diagnostics
     ├── LevelMeterView.swift      dBFS meter with peak hold and clip lamp
     ├── KeyNotation.swift         Musical / Camelot key names
     ├── Assets.xcassets           company logo (Logo) shown top-left
