@@ -28,6 +28,12 @@ struct ContentView: View {
         }
         .background(Color(white: 0.07).ignoresSafeArea())
         .preferredColorScheme(.dark)
+        .onAppear {
+            // Used by the CI screenshot job to capture the Inputs panel.
+            if ProcessInfo.processInfo.arguments.contains("-KDMShowInputs") {
+                showInputs = true
+            }
+        }
     }
 
     // MARK: - Header

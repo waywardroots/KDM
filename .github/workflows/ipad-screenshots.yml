@@ -1,0 +1,72 @@
+name: iPad screenshots
+
+# Runs the app in an iPad simulator and captures the main screen and the
+# Inputs panel, so UI changes can be reviewed without a device. Download the
+# "ipad-screenshots" artifact from the run.
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'iPad/**', '.github/workflows/ipad-screenshots.yml' ]
+  workflow_dispatch:
+
+jobs:
+  screenshots:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pick an iPad simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)["devices"]
+          ipads=[x for rt,devs in d.items() if "iOS" in rt for x in devs if x["name"].startswith("iPad Pro") or x["name"].startswith("iPad Air")]
+          ipads=ipads or [x for rt,devs in d.items() if "iOS" in rt for x in devs if x["name"].startswith("iPad")]
+          print(ipads[-1]["udid"])')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl list devices | grep "$UDID"
+
+      - name: Build for the simulator
+        run: >
+          xcodebuild -project iPad/KDM.xcodeproj -scheme KDM -configuration Debug
+          -destination "id=${{ steps.sim.outputs.udid }}"
+          -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+
+      - name: Boot, install, grant microphone
+        run: |
+          U=${{ steps.sim.outputs.udid }}
+          xcrun simctl boot "$U" || true
+          xcrun simctl bootstatus "$U" -b
+          xcrun simctl ui "$U" appearance dark
+          xcrun simctl install "$U" build/Build/Products/Debug-iphonesimulator/KDM.app
+          xcrun simctl privacy "$U" grant microphone com.jamesandthecat.kdm
+
+      - name: Screenshots (landscape and portrait)
+        run: |
+          U=${{ steps.sim.outputs.udid }}
+          mkdir -p shots
+          shoot() {  # $1 = name, $2.. = launch args
+            name=$1; shift
+            xcrun simctl terminate "$U" com.jamesandthecat.kdm 2>/dev/null || true
+            xcrun simctl launch "$U" com.jamesandthecat.kdm "$@"
+            sleep 6
+            xcrun simctl io "$U" screenshot "shots/$name.png"
+          }
+          shoot portrait-main
+          shoot portrait-inputs -KDMShowInputs
+          # Rotate to landscape via the simulator's orientation setting.
+          osascript -e 'tell application "Simulator" to activate' || true
+          osascript -e 'tell application "System Events" to keystroke (ASCII character 29) using command down' || true
+          sleep 2
+          shoot landscape-main
+          shoot landscape-inputs -KDMShowInputs
+          ls -la shots
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipad-screenshots
+          path: shots
