@@ -65,6 +65,15 @@ enum ChannelSelection: Hashable {
     }
 }
 
+/// One mixer channel analysed alongside the main output: a stereo pair of the
+/// input (e.g. X1800 channel 1 on USB 1 + 2) with its own analysis engine.
+struct ChannelStrip: Identifiable {
+    let id: Int                     // left channel index (stable per pair)
+    let name: String                // "Ch 1", "Ch 2", …
+    let selection: ChannelSelection
+    let engine: KDMAnalysisEngine
+}
+
 /// Owns the audio session and AVAudioEngine: lists inputs, switches between them,
 /// picks the channel(s) to analyse and feeds them to the analysis engine.
 ///
@@ -87,7 +96,17 @@ final class AudioInputManager: ObservableObject {
     @Published private(set) var currentInputID: String?
     @Published private(set) var channelCount = 0
     @Published private(set) var channelNames: [String] = []
+    /// The pair analysed as the main output (mixer master) — the big read-out.
     @Published private(set) var channelSelection: ChannelSelection = .stereo(left: 0)
+    /// Every other stereo pair of a multi-channel input, analysed per mixer channel.
+    @Published private(set) var strips: [ChannelStrip] = []
+    /// Analyse each mixer channel as well as the main output. Remembered.
+    @Published var analyseAllChannels: Bool = UserDefaults.standard.object(forKey: "kdm.strips.enabled") as? Bool ?? true {
+        didSet {
+            defaults.set(analyseAllChannels, forKey: Keys.stripsEnabled)
+            if engine.isRunning { reinstallTap() }
+        }
+    }
     @Published private(set) var sampleRate: Double = 0
     /// What iPadOS reports about audio inputs, for the diagnostics panel.
     @Published private(set) var diagnostics: [String] = []
@@ -96,8 +115,13 @@ final class AudioInputManager: ObservableObject {
 
     var currentInput: AudioInput? { inputs.first { $0.id == currentInputID } }
 
-    /// The analysis engine the UI reads results from.
-    let analysis = KDMAnalysisEngine()
+    /// The analysis engine for the main output.
+    let analysis: KDMAnalysisEngine = {
+        let e = KDMAnalysisEngine()
+        e.tunerEnabled = false      // key + BPM only
+        return e
+    }()
+    private var stripEnginePool: [KDMAnalysisEngine] = []
 
     private let engine = AVAudioEngine()
     private var tapInstalled = false
@@ -108,6 +132,7 @@ final class AudioInputManager: ObservableObject {
     private enum Keys {
         static let inputUID = "kdm.input.uid"
         static func channels(_ uid: String) -> String { "kdm.input.channels.\(uid)" }
+        static let stripsEnabled = "kdm.strips.enabled"
     }
 
     // MARK: - Starting
@@ -156,8 +181,14 @@ final class AudioInputManager: ObservableObject {
         }
         // Swap the tap in place; the engine keeps running.
         if engine.isRunning {
-            installTap(format: engine.inputNode.outputFormat(forBus: 0))
+            reinstallTap()
         }
+    }
+
+    /// Clears key / tempo history on every channel (e.g. when a new set starts).
+    func resetAllAnalysis() {
+        analysis.reset()
+        strips.forEach { $0.engine.reset() }
     }
 
     // MARK: - Session and engine
@@ -239,8 +270,15 @@ final class AudioInputManager: ObservableObject {
             return
         }
 
-        // Restore this device's saved channel choice; default to the first pair.
-        var selection: ChannelSelection = channelCount >= 2 ? .stereo(left: 0) : .mono(0)
+        // Restore this device's saved choice. Otherwise: a multi-channel device
+        // (a mixer) defaults to its LAST pair, which is where mixers usually put the
+        // master (X1800: USB 9 + 10); a 1-2 channel device uses its first pair.
+        var selection: ChannelSelection
+        if channelCount >= 4 {
+            selection = .stereo(left: (channelCount / 2 - 1) * 2)
+        } else {
+            selection = channelCount >= 2 ? .stereo(left: 0) : .mono(0)
+        }
         if let uid = currentInputID,
            let saved = defaults.string(forKey: Keys.channels(uid)).flatMap(ChannelSelection.init(storageValue:)),
            saved.isValid(forChannelCount: channelCount) {
@@ -249,43 +287,81 @@ final class AudioInputManager: ObservableObject {
         channelSelection = selection
 
         analysis.prepare(withSampleRate: sampleRate, maxBlockSize: 4096)
-        installTap(format: format)
+        installTap(format: format)   // also builds the channel strips
 
         engine.prepare()
         try engine.start()
         status = .running
     }
 
+    private func reinstallTap() {
+        installTap(format: engine.inputNode.outputFormat(forBus: 0))
+    }
+
+    /// (Re)builds the channel strips and installs one tap that feeds the main
+    /// engine and every strip engine.
     private func installTap(format: AVAudioFormat) {
         let input = engine.inputNode
         if tapInstalled {
             input.removeTap(onBus: 0)
+            tapInstalled = false
         }
-        input.installTap(onBus: 0,
-                         bufferSize: 1024,
-                         format: format,
-                         block: Self.makeTapBlock(analysis: analysis,
-                                                  left: channelSelection.leftIndex,
-                                                  right: channelSelection.rightIndex))
+
+        // The tap is off here, so engines can be (re)prepared safely.
+        rebuildStrips()
+
+        var routes: [Route] = [Route(engine: analysis,
+                                     left: channelSelection.leftIndex,
+                                     right: channelSelection.rightIndex)]
+        routes += strips.map { Route(engine: $0.engine, left: $0.selection.leftIndex, right: $0.selection.rightIndex) }
+
+        input.installTap(onBus: 0, bufferSize: 1024, format: format, block: Self.makeTapBlock(routes: routes))
         tapInstalled = true
     }
 
+    /// Every stereo pair that doesn't overlap the main output becomes a strip,
+    /// numbered in order (X1800 default: USB 1+2 … 7+8 = Ch 1 … Ch 4).
+    private func rebuildStrips() {
+        guard analyseAllChannels, channelCount >= 4 else {
+            strips = []
+            return
+        }
+        let main = Set([channelSelection.leftIndex, channelSelection.rightIndex].compactMap { $0 })
+        let pairs = stride(from: 0, to: channelCount - 1, by: 2).filter { !main.contains($0) && !main.contains($0 + 1) }
+
+        while stripEnginePool.count < pairs.count {
+            let e = KDMAnalysisEngine()
+            e.tunerEnabled = false
+            stripEnginePool.append(e)
+        }
+        strips = pairs.enumerated().map { i, left in
+            let e = stripEnginePool[i]
+            e.majorOnly = analysis.majorOnly
+            e.prepare(withSampleRate: sampleRate, maxBlockSize: 4096)
+            return ChannelStrip(id: left, name: "Ch \(i + 1)", selection: .stereo(left: left), engine: e)
+        }
+    }
+
+    /// One engine and the input channels that feed it.
+    private struct Route {
+        let engine: KDMAnalysisEngine
+        let left: Int
+        let right: Int?
+    }
+
     /// Built outside the main actor: the tap runs on an audio thread.
-    nonisolated private static func makeTapBlock(analysis: KDMAnalysisEngine,
-                                                 left: Int,
-                                                 right: Int?) -> AVAudioNodeTapBlock {
+    nonisolated private static func makeTapBlock(routes: [Route]) -> AVAudioNodeTapBlock {
         return { buffer, _ in
             guard let data = buffer.floatChannelData else { return }
             let channels = Int(buffer.format.channelCount)
-            guard left < channels else { return }
-
-            var rightPtr: UnsafePointer<Float>? = nil
-            if let r = right, r < channels {
-                rightPtr = UnsafePointer(data[r])
+            let frames = Int(buffer.frameLength)
+            for route in routes where route.left < channels {
+                var rightPtr: UnsafePointer<Float>? = nil
+                if let r = route.right, r < channels {
+                    rightPtr = UnsafePointer(data[r])
+                }
+                route.engine.processLeft(UnsafePointer(data[route.left]), right: rightPtr, frameCount: frames)
             }
-            analysis.processLeft(UnsafePointer(data[left]),
-                                 right: rightPtr,
-                                 frameCount: Int(buffer.frameLength))
         }
     }
 

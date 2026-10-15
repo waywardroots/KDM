@@ -9,7 +9,7 @@ struct KDMApp: App {
     init() {
         let audio = AudioInputManager()
         _audio = StateObject(wrappedValue: audio)
-        _model = StateObject(wrappedValue: AnalysisViewModel(engine: audio.analysis))
+        _model = StateObject(wrappedValue: AnalysisViewModel(audio: audio))
     }
 
     var body: some Scene {

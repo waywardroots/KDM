@@ -77,6 +77,19 @@ int main()
         check (s.keyPitchClass == 0 && ! s.keyIsMinor, "A minor scale -> relative C major in major-only mode");
     }
 
+    // --- Tuner off (what the iPad app uses): key still detected, no tuner reading
+    {
+        AnalysisEngine e;
+        e.setTunerEnabled (false);
+        e.prepare (kSR, 512);
+        std::vector<float> sig ((size_t) (kSR * 6.0), 0.0f);
+        for (int m : { 60, 62, 64, 65, 67, 69, 71, 72 }) addNote (sig, m, 0.05f);
+        feed (e, sig);
+        AnalysisEngine::Snapshot s; e.getSnapshot (s);
+        check (s.keyPitchClass == 0 && ! s.keyIsMinor, "tuner off: C major scale -> C major");
+        check (s.tunerFrequency == 0.0f, "tuner off: no tuner reading");
+    }
+
     // --- Tuner: A4 = 440 Hz ---------------------------------------------------
     {
         AnalysisEngine e;

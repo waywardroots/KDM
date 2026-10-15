@@ -1,9 +1,26 @@
 import Foundation
 import Combine
 
-/// Polls the analysis engine ~30 times a second and turns its raw numbers into
-/// what the screen shows: meter levels with fall-off and peak hold, the key and
-/// BPM read-outs (using the same thresholds as the desktop plug-in).
+/// A detected key: pitch class 0 = C … 11 = B.
+struct DetectedKey: Equatable {
+    let pitchClass: Int
+    let isMinor: Bool
+}
+
+/// What one mixer channel card shows.
+struct ChannelReadout: Identifiable, Equatable {
+    let id: Int                 // left input channel index of the pair
+    let name: String            // "Ch 1"
+    let channelsLabel: String   // "USB 1 + 2"
+    var key: DetectedKey?       // nil = no clear key
+    var bpm: Float?             // nil = no confident tempo
+    var levelDb: Float = AnalysisViewModel.floorDb   // peak with fall-off
+    var hasSignal = false
+}
+
+/// Polls the analysis engines ~30 times a second and turns their raw numbers into
+/// what the screen shows: the main output (meter, key, BPM) and one read-out per
+/// mixer channel, using the same thresholds as the desktop plug-in.
 @MainActor
 final class AnalysisViewModel: ObservableObject {
 
@@ -30,8 +47,9 @@ final class AnalysisViewModel: ObservableObject {
     @Published private(set) var keyIsReliable = false
     @Published private(set) var bpmText = "—"
     @Published private(set) var bpmIsReliable = false
-    @Published private(set) var tunerText = "—"
-    @Published private(set) var chroma: [Float] = Array(repeating: 0, count: 12)
+    @Published private(set) var mainKey: DetectedKey?
+    /// One entry per mixer channel (empty for a 1-2 channel input).
+    @Published private(set) var channels: [ChannelReadout] = []
 
     /// Musical ("C major") or Camelot ("8B"). Remembered between launches.
     @Published var notation: KeyNotation {
@@ -46,11 +64,16 @@ final class AnalysisViewModel: ObservableObject {
         didSet {
             defaults.set(showMinorKeys, forKey: Keys.showMinorKeys)
             engine.majorOnly = !showMinorKeys
-            engine.reset()
+            audio.strips.forEach { $0.engine.majorOnly = !showMinorKeys }
+            audio.resetAllAnalysis()
         }
     }
 
-    private let engine: KDMAnalysisEngine
+    private let audio: AudioInputManager
+    private var engine: KDMAnalysisEngine { audio.analysis }
+    private var channelLevels: [Int: (db: Float, lastSignal: Date)] = [:]
+    /// `-KDMDemo` launch argument: fixed sample values, for screenshots/design.
+    private let demo = ProcessInfo.processInfo.arguments.contains("-KDMDemo")
     private var timer: Timer?
     private var lastTick = Date()
     private var peakHoldTime = [Date.distantPast, Date.distantPast]
@@ -66,12 +89,28 @@ final class AnalysisViewModel: ObservableObject {
 
     nonisolated static let noteNames = KeyNotation.noteNames
 
-    init(engine: KDMAnalysisEngine) {
-        self.engine = engine
+    init(audio: AudioInputManager) {
+        self.audio = audio
         let saved = UserDefaults.standard
         notation = saved.string(forKey: Keys.notation).flatMap(KeyNotation.init(rawValue:)) ?? .musical
         showMinorKeys = saved.bool(forKey: Keys.showMinorKeys)
-        engine.majorOnly = !showMinorKeys
+        audio.analysis.majorOnly = !showMinorKeys
+    }
+
+    /// Key in the chosen notation ("C major" / "8B"), or "—".
+    func keyText(_ key: DetectedKey?) -> String {
+        guard let key else { return "—" }
+        return notation.format(pitchClass: key.pitchClass, isMinor: key.isMinor)
+    }
+
+    /// The same key in the other notation, or "".
+    func keyAltText(_ key: DetectedKey?) -> String {
+        guard let key else { return "" }
+        return notation.alternate.format(pitchClass: key.pitchClass, isMinor: key.isMinor)
+    }
+
+    static func bpmText(_ bpm: Float?) -> String {
+        bpm.map { String(format: "%.1f", $0) } ?? "—"
     }
 
     func start() {
@@ -88,7 +127,7 @@ final class AnalysisViewModel: ObservableObject {
     }
 
     func resetKey() {
-        engine.reset()
+        audio.resetAllAnalysis()
     }
 
     // MARK: -
@@ -97,6 +136,11 @@ final class AnalysisViewModel: ObservableObject {
         let now = Date()
         let dt = Float(now.timeIntervalSince(lastTick))
         lastTick = now
+
+        if demo {
+            applyDemo()
+            return
+        }
 
         let s = engine.snapshot()
 
@@ -110,11 +154,9 @@ final class AnalysisViewModel: ObservableObject {
 
         // Key: shown when the chroma matches a key profile well enough (corr >= 0.6),
         // exactly like the desktop editor.
-        let chromaValues = s.chroma.map { $0.floatValue }
-        chroma = chromaValues
-        let chromaSum = chromaValues.reduce(0, +)
-        if s.keyPitchClass >= 0, chromaSum > 1e-4, s.keyCorrelation >= 0.6 {
-            lastKey = (s.keyPitchClass, s.keyIsMinor)
+        let chromaSum = s.chroma.reduce(Float(0)) { $0 + $1.floatValue }
+        if let key = Self.reliableKey(s) {
+            lastKey = (key.pitchClass, key.isMinor)
             keyDetail = String(format: "corr %.2f  ·  conf %d%%", s.keyCorrelation, Int((s.keyConfidence * 100).rounded()))
             keyIsReliable = true
         } else {
@@ -125,25 +167,79 @@ final class AnalysisViewModel: ObservableObject {
         refreshKeyText()
 
         // BPM: shown when the tempo estimate is confident enough (>= 0.25).
-        if s.bpm > 0, s.bpmConfidence >= 0.25 {
-            bpmText = String(format: "%.1f", s.bpm)
+        if let bpm = Self.reliableBpm(s) {
+            bpmText = Self.bpmText(bpm)
             bpmIsReliable = true
         } else {
             bpmText = "—"
             bpmIsReliable = false
         }
 
-        tunerText = Self.tunerString(frequency: s.tunerFrequency)
+        updateChannels(now: now, dt: dt)
+    }
+
+    private func updateChannels(now: Date, dt: Float) {
+        var result: [ChannelReadout] = []
+        for strip in audio.strips {
+            let s = strip.engine.snapshot()
+            let peakDb = max(Self.db(s.peakLeft), Self.db(s.peakRight))
+            var state = channelLevels[strip.id] ?? (db: Self.floorDb, lastSignal: .distantPast)
+            state.db = max(peakDb, state.db - 24 * dt)
+            if peakDb > Self.signalThresholdDb { state.lastSignal = now }
+            channelLevels[strip.id] = state
+
+            let left = strip.selection.leftIndex + 1
+            var r = ChannelReadout(id: strip.id, name: strip.name, channelsLabel: "USB \(left) + \(left + 1)")
+            r.key = Self.reliableKey(s)
+            r.bpm = Self.reliableBpm(s)
+            r.levelDb = state.db
+            r.hasSignal = now.timeIntervalSince(state.lastSignal) < 1.0
+            result.append(r)
+        }
+        if result != channels { channels = result }
+    }
+
+    /// Key shown only when the chroma matches a key profile well (corr >= 0.6),
+    /// exactly like the desktop editor.
+    private static func reliableKey(_ s: KDMAnalysisSnapshot) -> DetectedKey? {
+        let chromaSum = s.chroma.reduce(Float(0)) { $0 + $1.floatValue }
+        guard s.keyPitchClass >= 0, chromaSum > 1e-4, s.keyCorrelation >= 0.6 else { return nil }
+        return DetectedKey(pitchClass: s.keyPitchClass, isMinor: s.keyIsMinor)
+    }
+
+    private static func reliableBpm(_ s: KDMAnalysisSnapshot) -> Float? {
+        s.bpm > 0 && s.bpmConfidence >= 0.25 ? s.bpm : nil
+    }
+
+    /// Fixed sample values (launch argument -KDMDemo), so the layout can be
+    /// reviewed in the simulator without a mixer.
+    private func applyDemo() {
+        hasSignal = true
+        isStereo = true
+        left = Meter(level: -9, peakHold: -7, rms: -16, clipping: false)
+        right = Meter(level: -10, peakHold: -8, rms: -17, clipping: false)
+        lastKey = (9, true)                       // A minor = 8A
+        keyDetail = "corr 0.84  ·  conf 62%"
+        keyIsReliable = true
+        refreshKeyText()
+        bpmText = "124.0"
+        bpmIsReliable = true
+        channels = [
+            ChannelReadout(id: 0, name: "Ch 1", channelsLabel: "USB 1 + 2",
+                           key: DetectedKey(pitchClass: 9, isMinor: true), bpm: 124.0, levelDb: -11, hasSignal: true),
+            ChannelReadout(id: 2, name: "Ch 2", channelsLabel: "USB 3 + 4",
+                           key: DetectedKey(pitchClass: 4, isMinor: true), bpm: 124.0, levelDb: -14, hasSignal: true),
+            ChannelReadout(id: 4, name: "Ch 3", channelsLabel: "USB 5 + 6",
+                           key: nil, bpm: nil, levelDb: AnalysisViewModel.floorDb, hasSignal: false),
+            ChannelReadout(id: 6, name: "Ch 4", channelsLabel: "USB 7 + 8",
+                           key: DetectedKey(pitchClass: 7, isMinor: false), bpm: 122.0, levelDb: -20, hasSignal: true),
+        ]
     }
 
     private func refreshKeyText() {
-        guard let key = lastKey else {
-            keyText = "—"
-            keyAltText = ""
-            return
-        }
-        keyText = notation.format(pitchClass: key.pitchClass, isMinor: key.isMinor)
-        keyAltText = notation.alternate.format(pitchClass: key.pitchClass, isMinor: key.isMinor)
+        mainKey = lastKey.map { DetectedKey(pitchClass: $0.pitchClass, isMinor: $0.isMinor) }
+        keyText = keyText(mainKey)
+        keyAltText = keyAltText(mainKey)
     }
 
     private func updated(_ m: Meter, peak: Float, rms: Float, clipped: Bool,
@@ -167,14 +263,5 @@ final class AnalysisViewModel: ObservableObject {
 
     nonisolated static func db(_ linear: Float) -> Float {
         linear > 0 ? max(floorDb, 20 * log10(linear)) : floorDb
-    }
-
-    private static func tunerString(frequency: Float) -> String {
-        guard frequency > 0 else { return "—" }
-        let midi = 69 + 12 * log2(Double(frequency) / 440)
-        let nearest = Int(midi.rounded())
-        let cents = Int(((midi - Double(nearest)) * 100).rounded())
-        let name = noteNames[((nearest % 12) + 12) % 12] + "\(nearest / 12 - 1)"
-        return String(format: "%@  %+d¢  (%.1f Hz)", name, cents, frequency)
     }
 }

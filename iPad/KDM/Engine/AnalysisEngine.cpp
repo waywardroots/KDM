@@ -206,14 +206,19 @@ void AnalysisEngine::analyseFrame() noexcept
     for (int i = 0; i < fftSize; ++i)
         frame[(size_t) i] = fifo[(size_t) ((writePos + i) % fftSize)];
 
-    // Tuner step 1: YIN on the most recent, un-windowed samples.
+    // Tuner step 1: YIN on the most recent, un-windowed samples (skipped when the
+    // tuner is off).
+    const bool tunerOn = tunerEnabled.load();
     const float* recent = frame.data() + (fftSize - pitchWindow);
-    const auto pitchResult = pitchDetector.process (recent, pitchWindow);
-
+    PitchDetector::Result pitchResult;
     double rms = 0.0;
-    for (int i = 0; i < pitchWindow; ++i)
-        rms += (double) recent[i] * recent[i];
-    rms = std::sqrt (rms / pitchWindow);
+    if (tunerOn)
+    {
+        pitchResult = pitchDetector.process (recent, pitchWindow);
+        for (int i = 0; i < pitchWindow; ++i)
+            rms += (double) recent[i] * recent[i];
+        rms = std::sqrt (rms / pitchWindow);
+    }
 
     if (resetRequested.exchange (false))
     {
@@ -234,7 +239,7 @@ void AnalysisEngine::analyseFrame() noexcept
     magnitudeSpectrum (frame.data());
 
     // Tuner step 2 (see KeyDetectorAudioProcessor::analyseFrame).
-    const bool silent = rms < 1.0e-3;
+    const bool silent = ! tunerOn || rms < 1.0e-3;
     const int  mode   = tunerMode.load();
 
     float rawFreq = 0.0f;

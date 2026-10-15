@@ -62,6 +62,7 @@ typedef NS_ENUM(NSInteger, KDMTunerMode) {
 @property (nonatomic) BOOL frozen;          // hold the current key
 @property (nonatomic) BOOL majorOnly;       // default YES (matches the desktop plug-in)
 @property (nonatomic) KDMTunerMode tunerMode;
+@property (nonatomic) BOOL tunerEnabled;    // default YES; off saves CPU (key + BPM only)
 
 @end
 

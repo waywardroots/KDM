@@ -90,6 +90,9 @@ public:
     /** The desktop plug-in shows major keys only. Turn this off to also report minor
         keys (needed for Camelot notation, e.g. 8A vs 8B). */
     void setMajorOnly (bool majorOnly)    noexcept { majorOnlyRequested.store (majorOnly); }
+    /** The tuner (YIN pitch detection) is the most expensive part of a frame. Turn it
+        off when only key and BPM are needed, e.g. when analysing several channels. */
+    void setTunerEnabled (bool enabled)   noexcept { tunerEnabled.store (enabled); }
     void requestReset()                   noexcept { resetRequested.store (true); }
 
     double getSampleRate() const noexcept { return sampleRate; }
@@ -133,6 +136,7 @@ private:
     std::atomic<bool>  frozen    { false };
     std::atomic<int>   tunerMode { 0 };
     std::atomic<bool>  majorOnlyRequested { true };
+    std::atomic<bool>  tunerEnabled { true };
     std::atomic<bool>  resetRequested { false };
 
     // Published results.

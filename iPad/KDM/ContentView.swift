@@ -1,9 +1,9 @@
 import SwiftUI
 import UIKit
 
-/// Main screen: header (logo, KDM, signal status, Inputs button), level meter
-/// and the key / BPM read-outs. Input selection and diagnostics live in the
-/// Inputs panel.
+/// Main screen: header (logo, KDM, signal status, Inputs button), the main
+/// output's key and BPM, one card per mixer channel, and the key settings.
+/// Input selection and diagnostics live in the Inputs panel.
 struct ContentView: View {
     @ObservedObject var audio: AudioInputManager
     @ObservedObject var model: AnalysisViewModel
@@ -19,11 +19,14 @@ struct ContentView: View {
                 case .failed(let message): messageCard("Audio couldn't start", message)
                 default: EmptyView()
                 }
-                meterCard
-                readoutCard
+                mainOutputCard
+                if !model.channels.isEmpty {
+                    channelsSection
+                }
+                keySettings
             }
             .padding(24)
-            .frame(maxWidth: 900)
+            .frame(maxWidth: 1100)
             .frame(maxWidth: .infinity)
         }
         .background(Color(white: 0.07).ignoresSafeArea())
@@ -73,16 +76,16 @@ struct ContentView: View {
         .buttonStyle(.bordered)
         .popover(isPresented: $showInputs, arrowEdge: .top) {
             InputsPanel(audio: audio, model: model) { showInputs = false }
-                .frame(minWidth: 520, idealWidth: 560, minHeight: 480, idealHeight: 620)
+                .frame(minWidth: 520, idealWidth: 560, minHeight: 480, idealHeight: 660)
         }
         .accessibilityHint("Choose the input source and channels, and see audio diagnostics")
     }
 
-    /// e.g. "X1800 Prime · Channels 9 + 10", shown under the status badge.
+    /// e.g. "X1800 Prime · 10 ch", shown under the status badge.
     private var sourceSummary: String {
         guard let input = audio.currentInput else { return "No input" }
         guard audio.channelCount > 0 else { return input.name }
-        return "\(input.name) · \(audio.channelSelection.label)"
+        return "\(input.name) · \(audio.channelCount) ch"
     }
 
     private var statusBadge: some View {
@@ -101,85 +104,104 @@ struct ContentView: View {
             .labelStyle(.titleAndIcon)
     }
 
-    // MARK: - Meter
+    // MARK: - Main output
 
-    private var meterCard: some View {
-        Card(title: "Level") {
-            VStack(spacing: 8) {
-                LevelMeterView(label: model.isStereo ? "L" : "M", meter: model.left)
-                if model.isStereo {
-                    LevelMeterView(label: "R", meter: model.right)
+    private var mainOutputCard: some View {
+        Card(title: mainOutputTitle) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .top, spacing: 32) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("KEY").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        Text(model.keyText)
+                            .font(.system(size: 88, weight: .bold, design: .rounded))
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(1)
+                            .foregroundStyle(model.keyIsReliable ? .primary : .secondary)
+                        HStack(spacing: 12) {
+                            if !model.keyAltText.isEmpty {
+                                Text(model.keyAltText)
+                                    .font(.title2.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(model.keyDetail)
+                                .font(.footnote.monospacedDigit())
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Text("BPM").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        Text(model.bpmText)
+                            .font(.system(size: 88, weight: .bold, design: .rounded).monospacedDigit())
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(1)
+                            .foregroundStyle(model.bpmIsReliable ? .primary : .secondary)
+                    }
                 }
-                MeterScaleView()
-                Text("Aim for peaks between −18 and −6 dBFS. Red lamp = clipping: turn the send down.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                VStack(spacing: 6) {
+                    LevelMeterView(label: model.isStereo ? "L" : "M", meter: model.left)
+                    if model.isStereo {
+                        LevelMeterView(label: "R", meter: model.right)
+                    }
+                }
             }
         }
     }
 
-    // MARK: - Read-outs
+    private var mainOutputTitle: String {
+        guard audio.channelCount > 0 else { return "Main output" }
+        if case .stereo(let l) = audio.channelSelection {
+            return "Main output · USB \(l + 1) + \(l + 2)"
+        }
+        return "Main output · USB \(audio.channelSelection.leftIndex + 1)"
+    }
 
-    private var readoutCard: some View {
-        Card(title: "Analysis") {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top, spacing: 40) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("KEY").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(model.keyText)
-                                .font(.system(size: 44, weight: .bold, design: .rounded))
-                                .foregroundStyle(model.keyIsReliable ? .primary : .secondary)
-                            Text(model.keyAltText)
-                                .font(.title3.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                        Text(model.keyDetail).font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("BPM").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        Text(model.bpmText)
-                            .font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
-                            .foregroundStyle(model.bpmIsReliable ? .primary : .secondary)
-                    }
-                    Spacer()
-                }
+    // MARK: - Mixer channels
 
-                ChromaBarsView(values: model.chroma)
-                    .frame(height: 70)
-
-                Text("Tuner: \(model.tunerText)")
-                    .font(.footnote.monospacedDigit())
-                    .foregroundStyle(.secondary)
-
-                HStack(spacing: 16) {
-                    Text("Key notation").foregroundStyle(.secondary)
-                    Picker("Key notation", selection: $model.notation) {
-                        ForEach(KeyNotation.allCases) { n in
-                            Text(n.title).tag(n)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 260)
-                    Spacer()
-                }
-
-                if model.notation == .camelot && !model.showMinorKeys {
-                    Text("Major keys only: Camelot codes will all be B. Turn on Detect minor keys to get A codes too.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack {
-                    Toggle("Detect minor keys", isOn: $model.showMinorKeys)
-                        .fixedSize()
-                    Spacer()
-                    Button("Reset key") { model.resetKey() }
-                        .buttonStyle(.bordered)
+    private var channelsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("MIXER CHANNELS")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 14)], spacing: 14) {
+                ForEach(model.channels) { channel in
+                    ChannelCard(channel: channel,
+                                keyText: model.keyText(channel.key),
+                                keyAltText: model.keyAltText(channel.key))
                 }
             }
         }
+    }
+
+    // MARK: - Key settings
+
+    private var keySettings: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 20) {
+                Picker("Key notation", selection: $model.notation) {
+                    ForEach(KeyNotation.allCases) { n in
+                        Text(n.title).tag(n)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 240)
+
+                Toggle("Detect minor keys", isOn: $model.showMinorKeys)
+                    .fixedSize()
+
+                Spacer()
+
+                Button("Reset keys") { model.resetKey() }
+                    .buttonStyle(.bordered)
+            }
+            if model.notation == .camelot && !model.showMinorKeys {
+                Text("Major keys only: Camelot codes will all be B. Turn on Detect minor keys to get A codes too.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.top, 4)
     }
 
     // MARK: - Messages
@@ -208,30 +230,56 @@ struct ContentView: View {
     }
 }
 
-/// Pitch-class energy, C to B.
-struct ChromaBarsView: View {
-    let values: [Float]
+/// One mixer channel: its key, BPM and level. Dimmed when the channel is silent.
+struct ChannelCard: View {
+    let channel: ChannelReadout
+    let keyText: String
+    let keyAltText: String
 
     var body: some View {
-        let maxValue = max(values.max() ?? 0, 1e-6)
-        HStack(alignment: .bottom, spacing: 6) {
-            ForEach(0..<12, id: \.self) { i in
-                VStack(spacing: 4) {
-                    GeometryReader { geo in
-                        let v = i < values.count ? CGFloat(values[i] / maxValue) : 0
-                        VStack {
-                            Spacer(minLength: 0)
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.accentColor.opacity(0.35 + 0.65 * v))
-                                .frame(height: geo.size.height * v)
-                        }
-                    }
-                    Text(AnalysisViewModel.noteNames[i])
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(channel.name).font(.headline)
+                Spacer()
+                Text(channel.channelsLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
+            Text(keyText)
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+                .foregroundStyle(channel.key != nil ? .primary : .secondary)
+
+            HStack(alignment: .firstTextBaseline) {
+                Text(keyAltText.isEmpty ? " " : keyAltText)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(AnalysisViewModel.bpmText(channel.bpm))
+                    .font(.title3.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(channel.bpm != nil ? .primary : .secondary)
+                Text("BPM")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
+            // Slim level bar.
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.08))
+                    Capsule()
+                        .fill(channel.levelDb > -6 ? Color.red : channel.levelDb > -18 ? Color.yellow : Color.green)
+                        .frame(width: geo.size.width * LevelMeterView.position(channel.levelDb))
                 }
             }
+            .frame(height: 5)
         }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(channel.hasSignal ? 0.07 : 0.035)))
+        .opacity(channel.hasSignal ? 1 : 0.55)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -267,7 +315,7 @@ struct LabeledRow<Content: View>: View {
         HStack(spacing: 16) {
             Text(label)
                 .foregroundStyle(.secondary)
-                .frame(width: 90, alignment: .leading)
+                .frame(width: 100, alignment: .leading)
             content
                 .frame(maxWidth: 520, alignment: .leading)
         }

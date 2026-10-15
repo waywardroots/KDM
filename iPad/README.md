@@ -26,9 +26,12 @@ Tap **Inputs** (top right) to open the input panel, then:
 
 - **Source:** pick the mixer / interface. The built-in mic is listed too, which
   is handy for a quick test with music playing in the room.
-- **Channels:** pick the channel pair carrying the audio you want analysed. USB
-  mixers usually send several pairs (e.g. master plus each deck), and iPadOS is
-  asked to open all of them, so try each pair until the meter moves.
+- **Main output:** the channel pair with the mixer's master mix; its key and BPM
+  are the big read-out. For a mixer the last pair is picked by default
+  (Denon X1800: USB 9 + 10).
+- **Mixer channels:** every other stereo pair is analysed too and shown as a
+  card per channel (X1800 default: Ch 1–4 on USB 1+2 … 7+8). Turn it off in
+  the Inputs panel if you only want the main output.
 - **Level:** aim for peaks between −18 and −6 dBFS. The red lamp means clipping.
 
 If a mixer doesn't appear as a source at all, iPadOS doesn't support it without
@@ -64,6 +67,9 @@ iPad/
 - **Hot-plugging:** connecting or removing a device, interruptions (calls, Siri)
   and media-server resets rebuild the audio graph automatically.
 - **Background:** audio keeps running when another app is in front.
+- **Analysis load:** key + BPM only (the tuner is off). Benchmarked at ~1.4% of
+  one desktop CPU core per channel pair, ~5.5% for all 5 pairs of a 10-channel
+  mixer (not yet measured on an iPad).
 - **Key notation:** choose *Musical* ("C major") or *Camelot* ("8B") in the
   Analysis panel; the other notation is shown small next to it. The choice is
   remembered.

@@ -26,6 +26,7 @@ struct InputsPanel: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     sourceCard
+                    mixerChannelsCard
                     diagnosticsCard
                 }
                 .padding(20)
@@ -59,7 +60,7 @@ struct InputsPanel: View {
                     .disabled(audio.inputs.isEmpty)
                 }
 
-                LabeledRow("Channels") {
+                LabeledRow("Main output") {
                     Menu {
                         ForEach(audio.channelOptions, id: \.self) { option in
                             Button {
@@ -91,6 +92,9 @@ struct InputsPanel: View {
                     }
                 }
                 .padding(.top, 4)
+                Text("Main output level. Aim for peaks between −18 and −6 dBFS; the red lamp means clipping.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
 
                 if audio.status == .running && !model.hasSignal {
                     Text("Nothing above \(Int(AnalysisViewModel.signalThresholdDb)) dBFS on these channels. Check the cable and the mixer's USB send, and try another channel pair. On the Denon X1800 the master mix is on channels 9 + 10 by default.")
@@ -118,6 +122,38 @@ struct InputsPanel: View {
             return "\(option.label) — \(names[l]) / \(names[r])"
         }
         return "\(option.label) — \(names[l])"
+    }
+
+    // MARK: - Mixer channels
+
+    private var mixerChannelsCard: some View {
+        Card(title: "Mixer channels") {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Show the key of each mixer channel", isOn: $audio.analyseAllChannels)
+                    .disabled(audio.channelCount < 4)
+
+                if audio.channelCount < 4 {
+                    Text("This input has \(audio.channelCount) channel\(audio.channelCount == 1 ? "" : "s"). Connect a mixer that sends each channel over USB (e.g. the Denon X1800) to see a key per channel.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else if audio.analyseAllChannels {
+                    Text("Every stereo pair except the main output is shown as a channel card.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    ForEach(model.channels) { ch in
+                        HStack {
+                            Text(ch.name).font(.body.weight(.semibold)).frame(width: 60, alignment: .leading)
+                            Text(ch.channelsLabel).foregroundStyle(.secondary)
+                            Spacer()
+                            Circle()
+                                .fill(ch.hasSignal ? Color.green : Color.white.opacity(0.15))
+                                .frame(width: 10, height: 10)
+                                .accessibilityLabel(ch.hasSignal ? "Signal" : "No signal")
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Diagnostics

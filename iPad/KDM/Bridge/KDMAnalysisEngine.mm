@@ -51,6 +51,7 @@
     BOOL _frozen;
     BOOL _majorOnly;
     KDMTunerMode _tunerMode;
+    BOOL _tunerEnabled;
 }
 
 - (instancetype)init
@@ -61,6 +62,7 @@
         _smoothing = 0.85f;
         _majorOnly = YES;
         _tunerMode = KDMTunerModeAuto;
+        _tunerEnabled = YES;
     }
     return self;
 }
@@ -103,6 +105,13 @@
 {
     _majorOnly = majorOnly;
     _engine->setMajorOnly (majorOnly);
+}
+
+- (BOOL)tunerEnabled { return _tunerEnabled; }
+- (void)setTunerEnabled:(BOOL)tunerEnabled
+{
+    _tunerEnabled = tunerEnabled;
+    _engine->setTunerEnabled (tunerEnabled);
 }
 
 - (KDMTunerMode)tunerMode { return _tunerMode; }
