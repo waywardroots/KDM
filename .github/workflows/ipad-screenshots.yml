@@ -1,14 +1,18 @@
 name: iPad screenshots
 
 # Runs the app in an iPad simulator and captures the main screen and the
-# Inputs panel, so UI changes can be reviewed without a device. Download the
-# "ipad-screenshots" artifact from the run.
+# Inputs panel, so UI changes can be reviewed without a device. The images are
+# uploaded as the "ipad-screenshots" artifact and also saved to the
+# `ci-screenshots` branch (one commit, replaced on every run).
 
 on:
   push:
     branches: [ main ]
     paths: [ 'iPad/**', '.github/workflows/ipad-screenshots.yml' ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   screenshots:
@@ -70,3 +74,13 @@ jobs:
         with:
           name: ipad-screenshots
           path: shots
+
+      - name: Save to the ci-screenshots branch
+        run: |
+          cd shots
+          git init -q -b ci-screenshots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Screenshots for ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" ci-screenshots
