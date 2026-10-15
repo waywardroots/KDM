@@ -55,6 +55,7 @@ jobs:
           shoot() {  # $1 = name, $2.. = launch args
             name=$1; shift
             xcrun simctl terminate "$U" com.jamesandthecat.kdm 2>/dev/null || true
+            sleep 2
             xcrun simctl launch "$U" com.jamesandthecat.kdm "$@"
             sleep 6
             xcrun simctl io "$U" screenshot "shots/$name.png"
