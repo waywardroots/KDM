@@ -32,9 +32,16 @@ struct ContentView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("KDM").font(.largeTitle.weight(.bold))
-            Text("Key Detector").font(.title3).foregroundStyle(.secondary)
+        HStack(alignment: .center, spacing: 14) {
+            // Company logo (Assets.xcassets/Logo). Already has rounded corners.
+            Image("Logo")
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 52, height: 52)
+                .accessibilityLabel("Fuzzy Audio")
+            Text("KDM")
+                .font(.largeTitle.weight(.bold))
             Spacer()
             statusBadge
         }

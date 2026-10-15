@@ -19,6 +19,10 @@
 			isa = PBXBuildFile;
 			fileRef = 5AA7815E7B54DA8491E36B2A;
 		};
+		258126E39C9BF8AF01AE757E = {
+			isa = PBXBuildFile;
+			fileRef = D23F0C31340F5036A12B8329;
+		};
 		326C2BE7BC2840F088087908 = {
 			isa = PBXBuildFile;
 			fileRef = 5823FEA9EB6E6EA78168310A;
@@ -144,6 +148,12 @@
 			path = KDMAnalysisEngine.h;
 			sourceTree = "<group>";
 		};
+		D23F0C31340F5036A12B8329 = {
+			isa = PBXFileReference;
+			lastKnownFileType = folder.assetcatalog;
+			path = Assets.xcassets;
+			sourceTree = "<group>";
+		};
 		DA3629ACC9C585C9BC2BD452 = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.c.h;
@@ -193,6 +203,7 @@
 				7A77E39754CEA631112DB6F9,
 				4109DB8585B48263D709C856,
 				4FDE07D038078294F37C5375,
+				D23F0C31340F5036A12B8329,
 				2349641B48A6FFC0ABD201D8,
 				29902DF19882080A6FF75616,
 			);
@@ -306,6 +317,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				258126E39C9BF8AF01AE757E,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

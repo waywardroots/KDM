@@ -48,6 +48,7 @@ iPad/
     ├── ContentView.swift         test screen (input picker, meters, read-outs)
     ├── LevelMeterView.swift      dBFS meter with peak hold and clip lamp
     ├── KeyNotation.swift         Musical / Camelot key names
+    ├── Assets.xcassets           company logo (Logo) shown top-left
     ├── Bridge/                   Objective-C++ wrapper so Swift can call the C++ engine
     └── Engine/AnalysisEngine.*   JUCE-free version of the plug-in's analysis pipeline
 ../Source/{ChromaKeyDetector,PitchDetector,TempoEstimator}.*   shared with the plug-in
