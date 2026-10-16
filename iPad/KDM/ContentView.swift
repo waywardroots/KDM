@@ -176,6 +176,10 @@ struct ContentView: View {
                     }
                 }
 
+                if let key = model.mainKey {
+                    NextKeysView(from: key, model: model)
+                }
+
                 VStack(spacing: 6) {
                     LevelMeterView(label: model.isStereo ? "L" : "M", meter: model.left)
                     if model.isStereo {
@@ -205,10 +209,20 @@ struct ContentView: View {
                 ForEach(model.channels) { channel in
                     ChannelCard(channel: channel,
                                 keyText: model.keyText(channel.key),
-                                keyAltText: model.keyAltText(channel.key))
+                                keyAltText: model.keyAltText(channel.key),
+                                match: mixMatch(for: channel))
                 }
             }
+            if model.mainKey != nil {
+                MixLegend()
+            }
         }
+    }
+
+    /// How a channel's key mixes with the main output (nil = a key is unknown).
+    private func mixMatch(for channel: ChannelReadout) -> MixMatch? {
+        guard let main = model.mainKey, let key = channel.key else { return nil }
+        return MixMatch(from: main, to: key)
     }
 
     // MARK: - Key settings
@@ -281,6 +295,8 @@ struct ChannelCard: View {
     let channel: ChannelReadout
     let keyText: String
     let keyAltText: String
+    /// How this channel mixes with the main output (nil = a key is unknown).
+    var match: MixMatch? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -297,6 +313,18 @@ struct ChannelCard: View {
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)
                 .foregroundStyle(channel.key != nil ? .primary : .secondary)
+
+            // How this channel's key mixes with the main output.
+            if let match {
+                Text(match.label)
+                    .font(.caption.weight(.bold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(match.category.color.opacity(0.2)))
+                    .foregroundStyle(match.category.color)
+            } else {
+                Text(" ").font(.caption.weight(.bold)).padding(.vertical, 3)
+            }
 
             HStack(alignment: .firstTextBaseline) {
                 Text(keyAltText.isEmpty ? " " : keyAltText)
@@ -324,6 +352,8 @@ struct ChannelCard: View {
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(channel.hasSignal ? 0.07 : 0.035)))
+        .overlay(RoundedRectangle(cornerRadius: 12)
+            .strokeBorder(match.map { $0 == .clash ? Color.clear : $0.category.color.opacity(0.7) } ?? .clear, lineWidth: 2))
         .opacity(channel.hasSignal ? 1 : 0.55)
         .accessibilityElement(children: .combine)
     }
@@ -364,6 +394,58 @@ struct LabeledRow<Content: View>: View {
                 .frame(width: 100, alignment: .leading)
             content
                 .frame(maxWidth: 520, alignment: .leading)
+        }
+    }
+}
+
+/// "Next keys": where the set can go from the main output's key on the Camelot
+/// wheel, in the chosen notation. Green = smooth mix, orange = energy change.
+struct NextKeysView: View {
+    let from: DetectedKey
+    @ObservedObject var model: AnalysisViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("NEXT KEYS").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], alignment: .leading, spacing: 8) {
+                ForEach(MixMove.suggestions) { move in
+                    let target = move.target(from: CamelotKey(from)).detectedKey
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(move.label)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(move.category.color)
+                        Text(model.keyText(target))
+                            .font(.headline)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(move.category.color.opacity(0.12)))
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        }
+    }
+}
+
+/// Explains the channel card colours.
+struct MixLegend: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            item(.smooth, "same, ±1, relative")
+            item(.energy, "+2, semitone up, parallel")
+            item(.clash, "doesn't mix")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    private func item(_ c: MixCategory, _ text: String) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(c.color).frame(width: 8, height: 8)
+            Text("\(c.title): \(text)")
         }
     }
 }

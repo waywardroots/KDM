@@ -94,8 +94,10 @@ final class AnalysisViewModel: ObservableObject {
     init(audio: AudioInputManager) {
         self.audio = audio
         let saved = UserDefaults.standard
-        notation = saved.string(forKey: Keys.notation).flatMap(KeyNotation.init(rawValue:)) ?? .musical
-        showMinorKeys = saved.bool(forKey: Keys.showMinorKeys)
+        // DJ defaults: Camelot notation, minor keys on (needed for A codes and the
+        // relative / parallel moves). A saved choice still wins.
+        notation = saved.string(forKey: Keys.notation).flatMap(KeyNotation.init(rawValue:)) ?? .camelot
+        showMinorKeys = saved.object(forKey: Keys.showMinorKeys) as? Bool ?? true
         audio.analysis.majorOnly = !showMinorKeys
     }
 
@@ -237,9 +239,9 @@ final class AnalysisViewModel: ObservableObject {
             ChannelReadout(id: 2, name: "Ch 2", channelsLabel: "USB 3 + 4",
                            key: DetectedKey(pitchClass: 4, isMinor: true), bpm: 124.0, levelDb: -14, hasSignal: true),
             ChannelReadout(id: 4, name: "Ch 3", channelsLabel: "USB 5 + 6",
-                           key: nil, bpm: nil, levelDb: AnalysisViewModel.floorDb, hasSignal: false),
+                           key: DetectedKey(pitchClass: 8, isMinor: false), bpm: 128.0, levelDb: -26, hasSignal: true),
             ChannelReadout(id: 6, name: "Ch 4", channelsLabel: "USB 7 + 8",
-                           key: DetectedKey(pitchClass: 7, isMinor: false), bpm: 122.0, levelDb: -20, hasSignal: true),
+                           key: DetectedKey(pitchClass: 11, isMinor: true), bpm: 126.0, levelDb: -20, hasSignal: true),
         ]
     }
 

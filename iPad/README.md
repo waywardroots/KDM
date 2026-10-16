@@ -56,6 +56,7 @@ iPad/
     ├── MinimalView.swift         minimal view: key + note bars only
     ├── LevelMeterView.swift      dBFS meter with peak hold and clip lamp
     ├── KeyNotation.swift         Musical / Camelot key names
+    ├── HarmonicMixing.swift      Camelot wheel moves: next keys + channel mix matching
     ├── Assets.xcassets           company logo (Logo) shown top-left
     ├── Bridge/                   Objective-C++ wrapper so Swift can call the C++ engine
     └── Engine/AnalysisEngine.*   JUCE-free version of the plug-in's analysis pipeline
@@ -75,9 +76,15 @@ iPad/
 - **Minimal view:** the *Minimal* button (top right) switches to a full-screen
   view with just the key and the note bars; *Full view* switches back. The
   choice is remembered.
-- **Key notation:** choose *Musical* ("C major") or *Camelot* ("8B") in the
-  Analysis panel; the other notation is shown small next to it. The choice is
-  remembered.
-- **Minor keys:** major keys only by default, matching the desktop plug-in, so
-  Camelot codes are all "B" until *Detect minor keys* is turned on (also
-  remembered).
+- **Key notation:** Camelot ("8A") by default, or Musical ("A minor"); the other
+  notation is shown small next to it. The choice is remembered.
+- **Minor keys:** detected by default (needed for A codes and the relative /
+  parallel moves). Can be switched off to report major keys only, like the
+  desktop plug-in.
+- **Next keys:** under the main output key, where the set can go on the Camelot
+  wheel. Smooth (green): −1, +1, Relative (same number, A ↔ B). Energy
+  (orange): +2 (whole step up), Semitone +1 (+7 on the wheel), Parallel (same
+  root, minor ↔ major: −3 to A from B, +3 to B from A).
+- **Channel matching:** each mixer channel card shows how its key mixes with the
+  main output (Smooth / Energy + the move, or Clash), with a green or orange
+  outline.
