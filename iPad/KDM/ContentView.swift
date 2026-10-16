@@ -330,6 +330,8 @@ struct ChannelCard: View {
                 Text(keyAltText.isEmpty ? " " : keyAltText)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 Spacer()
                 Text(AnalysisViewModel.bpmText(channel.bpm))
                     .font(.title3.weight(.semibold).monospacedDigit())
@@ -407,7 +409,7 @@ struct NextKeysView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("NEXT KEYS").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], alignment: .leading, spacing: 8) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 8)], alignment: .leading, spacing: 8) {
                 ForEach(MixMove.suggestions) { move in
                     let target = move.target(from: CamelotKey(from)).detectedKey
                     VStack(alignment: .leading, spacing: 2) {

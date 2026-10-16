@@ -75,6 +75,15 @@ enum MixMove: CaseIterable, Identifiable {
         }
     }
 
+    /// Shorter label for channel badges, after "Smooth · " / "Energy · ".
+    var shortLabel: String {
+        switch self {
+        case .energyBoost: return "+2"
+        case .semitoneUp:  return "+1 semitone"
+        default:           return label
+        }
+    }
+
     var category: MixCategory {
         switch self {
         case .same, .down, .up, .relative: return .smooth
@@ -125,7 +134,7 @@ enum MixMatch: Equatable {
     /// e.g. "Smooth · +1", "Energy · Parallel", "Clash".
     var label: String {
         switch self {
-        case .move(let m): return "\(m.category.title) · \(m.label)"
+        case .move(let m): return "\(m.category.title) · \(m.shortLabel)"
         case .clash:       return MixCategory.clash.title
         }
     }
