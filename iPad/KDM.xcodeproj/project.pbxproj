@@ -43,6 +43,10 @@
 			isa = PBXBuildFile;
 			fileRef = 2B5FE236FC8DD66D751834BC;
 		};
+		A387A43FDDD022B711084D3D = {
+			isa = PBXBuildFile;
+			fileRef = E729C4212180124E7FFFE1A1;
+		};
 		B463C3EAD6792CE2AB2850F6 = {
 			isa = PBXBuildFile;
 			fileRef = FEF27823192CDB21ECCB8749;
@@ -54,6 +58,10 @@
 		D24574D25CB39E46DD7AE327 = {
 			isa = PBXBuildFile;
 			fileRef = 9E41DFABE6BDBB37047BBDE6;
+		};
+		DC048851C6A3A1A18A5D60EF = {
+			isa = PBXBuildFile;
+			fileRef = 33F47E603B7225952F84F7DF;
 		};
 		FDD5490644E5AE26CCC48A92 = {
 			isa = PBXBuildFile;
@@ -90,6 +98,12 @@
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.c.h;
 			path = TempoEstimator.h;
+			sourceTree = "<group>";
+		};
+		33F47E603B7225952F84F7DF = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = MinimalView.swift;
 			sourceTree = "<group>";
 		};
 		3DFF63C21213E50289CA3548 = {
@@ -176,6 +190,12 @@
 			path = TempoEstimator.cpp;
 			sourceTree = "<group>";
 		};
+		E729C4212180124E7FFFE1A1 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = NoteBarsView.swift;
+			sourceTree = "<group>";
+		};
 		F5BF48AA40CAD7891EB709FC = {
 			isa = PBXFileReference;
 			explicitFileType = wrapper.application;
@@ -212,6 +232,8 @@
 				5823FEA9EB6E6EA78168310A,
 				7A77E39754CEA631112DB6F9,
 				97F79A53C3F3233656B8DF90,
+				E729C4212180124E7FFFE1A1,
+				33F47E603B7225952F84F7DF,
 				4109DB8585B48263D709C856,
 				4FDE07D038078294F37C5375,
 				D23F0C31340F5036A12B8329,
@@ -346,6 +368,8 @@
 				326C2BE7BC2840F088087908,
 				0B79165098D8DC1307C61CD1,
 				352274C23D3AF491B44C2F46,
+				A387A43FDDD022B711084D3D,
+				DC048851C6A3A1A18A5D60EF,
 				CCA89B44E28E3A30DAEE4762,
 				5B7CE9AA52F4A1956CC18538,
 				D24574D25CB39E46DD7AE327,

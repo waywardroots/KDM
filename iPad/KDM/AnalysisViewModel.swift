@@ -48,6 +48,8 @@ final class AnalysisViewModel: ObservableObject {
     @Published private(set) var bpmText = "—"
     @Published private(set) var bpmIsReliable = false
     @Published private(set) var mainKey: DetectedKey?
+    /// Note energy of the main output, C … B (the note bars), normalised 0…1.
+    @Published private(set) var chroma: [Float] = Array(repeating: 0, count: 12)
     /// One entry per mixer channel (empty for a 1-2 channel input).
     @Published private(set) var channels: [ChannelReadout] = []
 
@@ -154,7 +156,10 @@ final class AnalysisViewModel: ObservableObject {
 
         // Key: shown when the chroma matches a key profile well enough (corr >= 0.6),
         // exactly like the desktop editor.
-        let chromaSum = s.chroma.reduce(Float(0)) { $0 + $1.floatValue }
+        let chromaValues = s.chroma.map { $0.floatValue }
+        let chromaMax = chromaValues.max() ?? 0
+        chroma = chromaMax > 1e-6 ? chromaValues.map { $0 / chromaMax } : Array(repeating: 0, count: 12)
+        let chromaSum = chromaValues.reduce(0, +)
         if let key = Self.reliableKey(s) {
             lastKey = (key.pitchClass, key.isMinor)
             keyDetail = String(format: "corr %.2f  ·  conf %d%%", s.keyCorrelation, Int((s.keyConfidence * 100).rounded()))
@@ -223,6 +228,8 @@ final class AnalysisViewModel: ObservableObject {
         keyIsReliable = true
         refreshKeyText()
         bpmText = "124.0"
+        // A natural minor: strong A, C, E; weaker scale notes; little else.
+        chroma = [0.62, 0.05, 0.30, 0.08, 0.78, 0.22, 0.04, 0.35, 0.06, 1.0, 0.07, 0.18]
         bpmIsReliable = true
         channels = [
             ChannelReadout(id: 0, name: "Ch 1", channelsLabel: "USB 1 + 2",

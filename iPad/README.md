@@ -52,6 +52,8 @@ iPad/
     ├── AnalysisViewModel.swift   polls results ~30×/s; meter ballistics, key/BPM text
     ├── ContentView.swift         main screen (header, meter, key/BPM read-outs)
     ├── InputsPanel.swift         Inputs panel: source/channel pickers + audio diagnostics
+    ├── NoteBarsView.swift        note bars (C…B energy, notes of the key highlighted)
+    ├── MinimalView.swift         minimal view: key + note bars only
     ├── LevelMeterView.swift      dBFS meter with peak hold and clip lamp
     ├── KeyNotation.swift         Musical / Camelot key names
     ├── Assets.xcassets           company logo (Logo) shown top-left
@@ -70,6 +72,9 @@ iPad/
 - **Analysis load:** key + BPM only (the tuner is off). Benchmarked at ~1.4% of
   one desktop CPU core per channel pair, ~5.5% for all 5 pairs of a 10-channel
   mixer (not yet measured on an iPad).
+- **Minimal view:** the *Minimal* button (top right) switches to a full-screen
+  view with just the key and the note bars; *Full view* switches back. The
+  choice is remembered.
 - **Key notation:** choose *Musical* ("C major") or *Camelot* ("8B") in the
   Analysis panel; the other notation is shown small next to it. The choice is
   remembered.

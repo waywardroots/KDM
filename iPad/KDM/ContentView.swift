@@ -9,8 +9,30 @@ struct ContentView: View {
     @ObservedObject var model: AnalysisViewModel
 
     @State private var showInputs = false
+    /// Minimal view (key + note bars only). Remembered between launches.
+    @AppStorage("kdm.view.minimal") private var minimal = false
 
     var body: some View {
+        Group {
+            if minimal {
+                MinimalView(model: model) {
+                    withAnimation(.easeInOut(duration: 0.2)) { minimal = false }
+                }
+                .transition(.opacity)
+            } else {
+                fullView
+                    .transition(.opacity)
+            }
+        }
+        .onAppear {
+            // Used by the CI screenshot job.
+            let args = ProcessInfo.processInfo.arguments
+            if args.contains("-KDMMinimal") { minimal = true }
+            if args.contains("-KDMFull") { minimal = false }
+        }
+    }
+
+    private var fullView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 header
@@ -24,6 +46,7 @@ struct ContentView: View {
                     channelsSection
                 }
                 keySettings
+                noteBarsCard
             }
             .padding(24)
             .frame(maxWidth: 1100)
@@ -60,8 +83,22 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+            minimalButton
             inputsButton
         }
+    }
+
+    private var minimalButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { minimal = true }
+        } label: {
+            Label("Minimal", systemImage: "rectangle.compress.vertical")
+                .font(.body.weight(.semibold))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+        }
+        .buttonStyle(.bordered)
+        .accessibilityHint("Show only the key and the note bars")
     }
 
     private var inputsButton: some View {
@@ -202,6 +239,15 @@ struct ContentView: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    // MARK: - Note bars
+
+    private var noteBarsCard: some View {
+        Card(title: "Notes · main output") {
+            NoteBarsView(values: model.chroma, key: model.mainKey)
+                .frame(height: 140)
+        }
     }
 
     // MARK: - Messages

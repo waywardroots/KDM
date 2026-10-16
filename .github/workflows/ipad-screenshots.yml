@@ -60,16 +60,18 @@ jobs:
             sleep 6
             xcrun simctl io "$U" screenshot "shots/$name.png"
           }
-          shoot portrait-main
-          shoot portrait-demo -KDMDemo
-          shoot portrait-inputs -KDMShowInputs
+          shoot portrait-main -KDMFull
+          shoot portrait-demo -KDMDemo -KDMFull
+          shoot portrait-minimal -KDMDemo -KDMMinimal
+          shoot portrait-inputs -KDMShowInputs -KDMFull
           # Rotate to landscape via the simulator's orientation setting.
           osascript -e 'tell application "Simulator" to activate' || true
           osascript -e 'tell application "System Events" to keystroke (ASCII character 29) using command down' || true
           sleep 2
-          shoot landscape-main
-          shoot landscape-demo -KDMDemo
-          shoot landscape-inputs -KDMShowInputs
+          shoot landscape-main -KDMFull
+          shoot landscape-demo -KDMDemo -KDMFull
+          shoot landscape-minimal -KDMDemo -KDMMinimal
+          shoot landscape-inputs -KDMShowInputs -KDMFull
           ls -la shots
 
       - name: Upload screenshots
