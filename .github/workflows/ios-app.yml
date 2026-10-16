@@ -40,7 +40,13 @@ jobs:
 
       - name: Test
         working-directory: iPad/StageLinQ
-        run: swift test
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tee test-output.txt || {
+            # Surface failures as annotations (readable without the full log).
+            grep -E "error:|failed|XCTAssert" test-output.txt | head -30 | sed 's/^/::error::/'
+            exit 1
+          }
 
       - name: Build for iPad
         working-directory: iPad/StageLinQ

@@ -159,7 +159,8 @@ final class KeyParsingTests: XCTestCase {
         XCTAssertEqual(MusicalKey(parsing: "1d"), MusicalKey(pitchClass: 0, isMinor: false))   // C major
         XCTAssertEqual(MusicalKey(parsing: "1m"), MusicalKey(pitchClass: 9, isMinor: true))    // A minor
         XCTAssertEqual(MusicalKey(parsing: "12d"), MusicalKey(pitchClass: 5, isMinor: false))  // F major
-        XCTAssertEqual(MusicalKey(parsing: "6m"), MusicalKey(pitchClass: 6, isMinor: true))    // F# minor
+        XCTAssertEqual(MusicalKey(parsing: "4m"), MusicalKey(pitchClass: 6, isMinor: true))    // F# minor
+        XCTAssertEqual(MusicalKey(parsing: "6m"), MusicalKey(pitchClass: 8, isMinor: true))    // G# minor
     }
 
     func testMusicalNames() {
