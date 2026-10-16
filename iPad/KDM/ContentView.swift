@@ -42,9 +42,7 @@ struct ContentView: View {
                 default: EmptyView()
                 }
                 mainOutputCard
-                if !model.channels.isEmpty {
-                    channelsSection
-                }
+                channelsSection
                 keySettings
                 noteBarsCard
             }
@@ -205,6 +203,9 @@ struct ContentView: View {
             Text("MIXER CHANNELS")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
+            if model.channels.isEmpty {
+                channelsUnavailable
+            }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 14)], spacing: 14) {
                 ForEach(model.channels) { channel in
                     ChannelCard(channel: channel,
@@ -213,10 +214,39 @@ struct ContentView: View {
                                 match: mixMatch(for: channel))
                 }
             }
-            if model.mainKey != nil {
+            if model.mainKey != nil && !model.channels.isEmpty {
                 MixLegend()
             }
         }
+    }
+
+    /// Shown instead of the channel cards, saying why there are none.
+    private var channelsUnavailable: some View {
+        let reason: String = {
+            if audio.channelCount == 0 {
+                return "No audio input. Connect the mixer over USB, then open Inputs."
+            }
+            if audio.channelCount < 4 {
+                let name = audio.currentInput?.name ?? "This input"
+                return "\(name) gives the app \(audio.channelCount) channel\(audio.channelCount == 1 ? "" : "s"), so there are no separate mixer channels to show. Connect a mixer that sends each channel over USB (e.g. the Denon X1800: 10 channels) and choose it under Inputs."
+            }
+            return "Channel keys are turned off. Turn on \"Show the key of each mixer channel\" under Inputs."
+        }()
+        return HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "slider.vertical.3")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+            Text(reason)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button("Inputs") { showInputs = true }
+                .buttonStyle(.bordered)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.04)))
     }
 
     /// How a channel's key mixes with the main output (nil = a key is unknown).
