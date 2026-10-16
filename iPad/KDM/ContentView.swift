@@ -416,21 +416,19 @@ struct NextKeysView: View {
                       alignment: .leading, spacing: 8) {
                 ForEach(MixMove.suggestions) { move in
                     let target = move.target(from: CamelotKey(from)).detectedKey
-                    VStack(alignment: .leading, spacing: large ? 4 : 2) {
-                        Text(move.label)
-                            .font((large ? Font.callout : Font.caption2).weight(.semibold))
-                            .foregroundStyle(move.category.color)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                        Text(model.keyText(target))
-                            .font(large ? .system(size: 38, weight: .bold, design: .rounded) : .headline)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.5)
-                    }
+                    // Just the key; the colour says smooth (green) or energy (orange).
+                    Text(model.keyText(target))
+                        .font(large ? .system(size: 38, weight: .bold, design: .rounded) : .headline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityLabel("\(move.label): \(model.keyText(target))")
                     .padding(.horizontal, large ? 14 : 10)
                     .padding(.vertical, large ? 12 : 7)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: large ? 12 : 8).fill(move.category.color.opacity(large ? 0.16 : 0.12)))
+                    .frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: large ? 12 : 8).fill(move.category.color.opacity(0.16)))
+                    .overlay(RoundedRectangle(cornerRadius: large ? 12 : 8)
+                        .strokeBorder(move.category.color.opacity(0.6), lineWidth: large ? 2 : 1.5))
                     .accessibilityElement(children: .combine)
                 }
             }
