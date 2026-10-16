@@ -411,9 +411,10 @@ struct NextKeysView: View {
             Text("NEXT KEYS")
                 .font((large ? Font.callout : Font.caption).weight(.semibold))
                 .foregroundStyle(.secondary)
-            LazyVGrid(columns: large ? Array(repeating: GridItem(.flexible(), spacing: 12), count: MixMove.suggestions.count)
-                                     : [GridItem(.adaptive(minimum: 84), spacing: 8)],
-                      alignment: .leading, spacing: 8) {
+            // One equal-width column per suggestion, filling the whole row.
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: large ? 12 : 8),
+                                     count: MixMove.suggestions.count),
+                      spacing: 8) {
                 ForEach(MixMove.suggestions) { move in
                     let target = move.target(from: CamelotKey(from)).detectedKey
                     // Just the key; the colour says smooth (green) or energy (orange).
