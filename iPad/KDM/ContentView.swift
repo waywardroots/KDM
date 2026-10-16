@@ -435,26 +435,34 @@ struct LabeledRow<Content: View>: View {
 struct NextKeysView: View {
     let from: DetectedKey
     @ObservedObject var model: AnalysisViewModel
+    /// Bigger chips in one row, for the Minimal view.
+    var large = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("NEXT KEYS").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 8)], alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: large ? 12 : 8) {
+            Text("NEXT KEYS")
+                .font((large ? Font.callout : Font.caption).weight(.semibold))
+                .foregroundStyle(.secondary)
+            LazyVGrid(columns: large ? Array(repeating: GridItem(.flexible(), spacing: 12), count: MixMove.suggestions.count)
+                                     : [GridItem(.adaptive(minimum: 84), spacing: 8)],
+                      alignment: .leading, spacing: 8) {
                 ForEach(MixMove.suggestions) { move in
                     let target = move.target(from: CamelotKey(from)).detectedKey
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: large ? 4 : 2) {
                         Text(move.label)
-                            .font(.caption2.weight(.semibold))
+                            .font((large ? Font.callout : Font.caption2).weight(.semibold))
                             .foregroundStyle(move.category.color)
-                        Text(model.keyText(target))
-                            .font(.headline)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            .minimumScaleFactor(0.6)
+                        Text(model.keyText(target))
+                            .font(large ? .system(size: 38, weight: .bold, design: .rounded) : .headline)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
+                    .padding(.horizontal, large ? 14 : 10)
+                    .padding(.vertical, large ? 12 : 7)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(move.category.color.opacity(0.12)))
+                    .background(RoundedRectangle(cornerRadius: large ? 12 : 8).fill(move.category.color.opacity(large ? 0.16 : 0.12)))
                     .accessibilityElement(children: .combine)
                 }
             }

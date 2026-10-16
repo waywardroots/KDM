@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Minimal view: just the main output's key and the note bars, big and
-/// readable from a distance. Tap "Full view" (top right) to go back.
+/// Minimal view: the main output's key, the next keys to mix to and the note
+/// bars, big and readable from a distance. Tap "Full view" (top right) to go back.
 struct MinimalView: View {
     @ObservedObject var model: AnalysisViewModel
     var onExit: () -> Void
@@ -36,8 +36,14 @@ struct MinimalView: View {
 
                 Spacer(minLength: 12)
 
+                // Where to mix next on the Camelot wheel.
+                if let key = model.mainKey {
+                    NextKeysView(from: key, model: model, large: true)
+                        .padding(.bottom, 24)
+                }
+
                 NoteBarsView(values: model.chroma, key: model.mainKey)
-                    .frame(height: geo.size.height * (compact ? 0.3 : 0.32))
+                    .frame(height: geo.size.height * (compact ? 0.22 : 0.26))
             }
             .padding(28)
         }

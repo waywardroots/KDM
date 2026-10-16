@@ -74,7 +74,8 @@ iPad/
   one desktop CPU core per channel pair, ~5.5% for all 5 pairs of a 10-channel
   mixer (not yet measured on an iPad).
 - **Minimal view:** the *Minimal* button (top right) switches to a full-screen
-  view with just the key and the note bars; *Full view* switches back. The
+  view with just the key, the next keys to mix to and the note bars; *Full view*
+  switches back. The
   choice is remembered.
 - **Key notation:** Camelot ("8A") by default, or Musical ("A minor"); the other
   notation is shown small next to it. The choice is remembered.
