@@ -26,6 +26,26 @@ jobs:
             -o analysis-engine-test
           ./analysis-engine-test
 
+  stagelinq:
+    # The StageLinQ package (Denon / Engine DJ network data): build, the Mac
+    # monitor tool, and the codec + key parsing tests.
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        working-directory: iPad/StageLinQ
+        run: swift build
+
+      - name: Test
+        working-directory: iPad/StageLinQ
+        run: swift test
+
+      - name: Build for iPad
+        working-directory: iPad/StageLinQ
+        run: xcodebuild -scheme StageLinQ -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO build
+
   ipad-app:
     runs-on: macos-latest
     steps:
