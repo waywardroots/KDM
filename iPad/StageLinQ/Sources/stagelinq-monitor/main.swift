@@ -3,6 +3,7 @@
 //   cd iPad/StageLinQ
 //   swift run stagelinq-monitor            # live deck summary
 //   swift run stagelinq-monitor --raw      # also print every state update
+//   swift run stagelinq-monitor --as-nowplaying   # announce as the Now Playing app
 //
 // Every update is also written to stagelinq-log.txt in the current folder, so
 // it can be sent back for checking.
@@ -32,7 +33,11 @@ func pad(_ s: String, _ n: Int) -> String {
     s.count >= n ? String(s.prefix(n - 1)) + "…" : s + String(repeating: " ", count: n - s.count)
 }
 
-let client = StageLinQClient(name: "kdm-monitor", softwareName: "KDM", softwareVersion: "0.1")
+// --as-nowplaying: announce with the Now Playing app's identity, in case the
+// gear ignores software it doesn't know.
+let client = CommandLine.arguments.contains("--as-nowplaying")
+    ? StageLinQClient(name: "np2", softwareName: "nowplaying", softwareVersion: "2.2.0", token: .nowPlaying)
+    : StageLinQClient(name: "kdm-monitor", softwareName: "KDM", softwareVersion: "0.1")
 
 client.onLog = { write($0) }
 

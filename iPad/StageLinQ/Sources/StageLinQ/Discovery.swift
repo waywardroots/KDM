@@ -34,7 +34,8 @@ final class Discovery: @unchecked Sendable {
     private let queue = DispatchQueue(label: "stagelinq.discovery")
     private var announceTimer: DispatchSourceTimer?
     private var readSource: DispatchSourceRead?
-    private var lastSendError: Int32 = 0
+    private var reportedSendErrors: Set<String> = []
+    private var announcedTo: Set<String> = []
 
     init(token: Token, name: String, softwareName: String, softwareVersion: String) {
         self.token = token
@@ -110,10 +111,23 @@ final class Discovery: @unchecked Sendable {
                     }
                 }
             }
-            if sent < 0, errno != lastSendError {
-                lastSendError = errno
-                onLog?("Announcement failed: \(String(cString: strerror(errno)))"
-                       + (errno == EHOSTUNREACH || errno == EPERM ? " (on iPad: needs the multicast networking entitlement)" : ""))
+            if sent < 0 {
+                let err = errno
+                var a = in_addr(s_addr: target)
+                var ip = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+                inet_ntop(AF_INET, &a, &ip, socklen_t(INET_ADDRSTRLEN))
+                let key = "\(String(cString: ip))#\(err)"
+                if reportedSendErrors.insert(key).inserted {
+                    onLog?("Announcement to \(String(cString: ip)) failed: \(String(cString: strerror(err)))"
+                           + (err == EHOSTUNREACH || err == EPERM ? " (on iPad: needs the multicast networking entitlement)" : ""))
+                }
+            } else {
+                var a = in_addr(s_addr: target)
+                var ip = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+                inet_ntop(AF_INET, &a, &ip, socklen_t(INET_ADDRSTRLEN))
+                if announcedTo.insert(String(cString: ip)).inserted {
+                    onLog?("Announcing on \(String(cString: ip))")
+                }
             }
         }
     }

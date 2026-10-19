@@ -45,17 +45,23 @@ public final class StageLinQClient: @unchecked Sendable {
     public var onDevicesChanged: (([DiscoveredDevice]) -> Void)?
     public var onLog: ((String) -> Void)?
 
-    public let token = Token.random()
+    public let token: Token
     private let queue = DispatchQueue(label: "stagelinq.client")
     private let discovery: Discovery
     private var connections: [Token: DeviceConnection] = [:]
+    private var retryAfter: [Token: Date] = [:]
+    private var notedMixers: Set<Token> = []
     private var decks: [String: DeckStatus] = [:]          // "<address>#<deck>"
     private var mixers: [String: MixerStatus] = [:]        // address
 
     /// Software names that aren't DJ gear (analysers, lighting / VJ apps, other clients).
     public static let ignoredSoftware: Set<String> = ["OfflineAnalyzer", "SoundSwitch", "SSS0", "Resolume", "NowPlaying", "Now Playing"]
 
-    public init(name: String = "KDM", softwareName: String = "KDM", softwareVersion: String = "0.1") {
+    /// The token and names used in our announcements. Engine gear accepts any
+    /// well-formed identity; `nowPlaying` copies the one used by the Now Playing
+    /// app, as a fallback if a firmware ever rejects unknown software.
+    public init(name: String = "KDM", softwareName: String = "KDM", softwareVersion: String = "0.1", token: Token = .random()) {
+        self.token = token
         discovery = Discovery(token: token, name: name, softwareName: softwareName, softwareVersion: softwareVersion)
     }
 
@@ -106,16 +112,28 @@ public final class StageLinQClient: @unchecked Sendable {
 
     private func handleDiscovery(_ device: DiscoveredDevice, _ action: DiscoveryMessage.Action) {
         if Self.ignoredSoftware.contains(device.softwareName) { return }
+        // The X1800/X1850 (JM08) refuses StageLinQ connections; its faders aren't
+        // available this way. Note it once and leave it alone.
+        if device.softwareName == "JM08" {
+            if notedMixers.insert(device.token).inserted {
+                log("Found \(device): mixer noted (it doesn't accept StageLinQ connections)")
+            }
+            return
+        }
         switch action {
         case .howdy:
             guard connections[device.token] == nil, device.port != 0 else { return }
+            // After a dropped connection, wait a few seconds before trying again
+            // instead of reconnecting on every announcement.
+            if let until = retryAfter[device.token], Date() < until { return }
             log("Found \(device)")
             let conn = DeviceConnection(device: device, token: token, subscriptions: Self.subscriptions(), queue: queue)
             conn.onLog = { [weak self] in self?.log($0) }
             conn.onState = { [weak self] dev, path, value in self?.handleState(dev, path, value) }
             conn.onClosed = { [weak self] dev, _ in
-                // Forget it; its next announcement reconnects.
+                // Forget it; an announcement after the retry delay reconnects.
                 self?.connections[dev.token] = nil
+                self?.retryAfter[dev.token] = Date().addingTimeInterval(5)
                 self?.publishDevices()
             }
             connections[device.token] = conn

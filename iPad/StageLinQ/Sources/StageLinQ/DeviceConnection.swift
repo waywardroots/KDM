@@ -23,6 +23,8 @@ final class DeviceConnection: @unchecked Sendable {
     private var keepAlive: DispatchSourceTimer?
     private var services: [String: UInt16] = [:]
     private var closed = false
+    private var requestedServices = false
+    private var fallbackRequest: DispatchWorkItem?
 
     init(device: DiscoveredDevice, token: Token, subscriptions: [String], queue: DispatchQueue) {
         self.device = device
@@ -42,10 +44,18 @@ final class DeviceConnection: @unchecked Sendable {
             guard let self else { return }
             switch state {
             case .ready:
-                self.log("connected")
-                // Ask for the device's services, and keep the link alive.
-                self.send(MainMessage.servicesRequest(token: self.token).encoded(), on: conn)
-                self.startKeepAlive(on: conn)
+                self.log("connected; waiting for the device to start the handshake")
+                // Current Engine firmware speaks first: it sends a services request,
+                // and only then accepts ours. Sending before that (or sending
+                // keep-alives) makes the player reset the connection at once.
+                // If it stays silent, ask anyway after 3 s.
+                let fallback = DispatchWorkItem { [weak self] in
+                    guard let self, !self.closed, !self.requestedServices else { return }
+                    self.log("device didn't start the handshake; asking for its services")
+                    self.requestServices(on: conn)
+                }
+                self.fallbackRequest = fallback
+                self.queue.asyncAfter(deadline: .now() + 3, execute: fallback)
             case .failed(let error):
                 self.close("main connection failed: \(error.localizedDescription)")
             case .waiting(let error):
@@ -94,9 +104,9 @@ final class DeviceConnection: @unchecked Sendable {
                         openStateMap(port: port)
                     }
                 case .servicesRequest:
-                    // The device asks what we offer: nothing. Ask for its list
-                    // again, in case our first request came too early.
-                    send(MainMessage.servicesRequest(token: token).encoded(), on: conn)
+                    // The device opens the handshake; answer with our request
+                    // (we offer no services of our own).
+                    if !requestedServices { requestServices(on: conn) }
                 case .reference:
                     break
                 }
@@ -107,6 +117,13 @@ final class DeviceConnection: @unchecked Sendable {
         }
     }
 
+    private func requestServices(on conn: NWConnection) {
+        requestedServices = true
+        fallbackRequest?.cancel()
+        send(MainMessage.servicesRequest(token: token).encoded(), on: conn)
+    }
+
+    /// Not used: current firmware resets connections that send these unprompted.
     private func startKeepAlive(on conn: NWConnection) {
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + 0.25, repeating: 0.25)
@@ -193,6 +210,7 @@ final class DeviceConnection: @unchecked Sendable {
     private func close(_ reason: String) {
         guard !closed else { return }
         closed = true
+        fallbackRequest?.cancel()
         keepAlive?.cancel()
         keepAlive = nil
         main?.cancel()

@@ -19,6 +19,9 @@ public struct Token: Hashable, CustomStringConvertible {
         return Token(b)
     }
 
+    /// The token the Now Playing / SoundSwitch apps announce with.
+    public static let nowPlaying = Token([82, 253, 252, 7, 33, 130, 101, 79, 22, 63, 95, 15, 154, 98, 29, 114])
+
     public static let zero = Token([UInt8](repeating: 0, count: 16))
 
     public var description: String { bytes.map { String(format: "%02x", $0) }.joined() }
