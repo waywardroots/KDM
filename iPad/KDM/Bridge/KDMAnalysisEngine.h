@@ -64,6 +64,12 @@ typedef NS_ENUM(NSInteger, KDMTunerMode) {
 @property (nonatomic) KDMTunerMode tunerMode;
 @property (nonatomic) BOOL tunerEnabled;    // default YES; off saves CPU (key + BPM only)
 
+/// Key stability: how long the note profile is averaged (seconds) and how long a
+/// different key must keep winning before it's shown (seconds).
+- (void)setKeySmoothingSeconds:(double)seconds holdSeconds:(double)hold;
+/// Below this level (dBFS) key analysis pauses and keeps its last key (fader down).
+@property (nonatomic) float silenceGateDb;
+
 @end
 
 NS_ASSUME_NONNULL_END

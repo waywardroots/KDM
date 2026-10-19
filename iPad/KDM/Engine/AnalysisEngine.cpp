@@ -229,8 +229,17 @@ void AnalysisEngine::analyseFrame() noexcept
     }
 
     const double hopSeconds = (double) hopSize / sampleRate;
-    const double tau   = 0.1 + (double) smoothing.load() * 3.9;   // 0.1 s .. ~4 s
+    const double tau = std::max (0.05, (double) smoothingSeconds.load());
     detector.setSmoothing ((float) std::exp (-hopSeconds / tau));
+    detector.setKeyHoldTime (keyHoldSeconds.load());
+
+    // Silence gate: a faded-down channel still carries a faint noise floor; feeding
+    // that in would slowly wash the key away. Pause the key analysis instead.
+    double frameSq = 0.0;
+    for (int i = 0; i < fftSize; ++i)
+        frameSq += (double) frame[(size_t) i] * frame[(size_t) i];
+    const double frameDb = 10.0 * std::log10 (frameSq / fftSize + 1.0e-20);
+    const bool gated = frameDb < (double) silenceGateDb.load();
     detector.setFrozen    (frozen.load());
     detector.setMajorOnly (majorOnlyRequested.load());
 
@@ -266,7 +275,8 @@ void AnalysisEngine::analyseFrame() noexcept
 
     updateTuner (rawFreq, rawIsPitch, valid, pitchResult.clarity);
 
-    detector.processSpectrum (frame.data(), numBins);
+    if (! gated)
+        detector.processSpectrum (frame.data(), numBins);
     const auto est    = detector.estimateStableKey (hopSeconds);
     const auto chroma = detector.getChroma();
 

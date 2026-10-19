@@ -61,6 +61,14 @@ final class AnalysisViewModel: ObservableObject {
         }
     }
 
+    /// How quickly the key follows the music. Remembered; Steady by default.
+    @Published var stability: KeyStability {
+        didSet {
+            defaults.set(stability.rawValue, forKey: Keys.stability)
+            applyStability()
+        }
+    }
+
     /// Off = major keys only (like the desktop plug-in). Remembered between launches.
     @Published var showMinorKeys: Bool {
         didSet {
@@ -87,6 +95,7 @@ final class AnalysisViewModel: ObservableObject {
     private enum Keys {
         static let notation = "kdm.key.notation"
         static let showMinorKeys = "kdm.key.showMinor"
+        static let stability = "kdm.key.stability"
     }
 
     nonisolated static let noteNames = KeyNotation.noteNames
@@ -98,7 +107,9 @@ final class AnalysisViewModel: ObservableObject {
         // relative / parallel moves). A saved choice still wins.
         notation = saved.string(forKey: Keys.notation).flatMap(KeyNotation.init(rawValue:)) ?? .camelot
         showMinorKeys = saved.object(forKey: Keys.showMinorKeys) as? Bool ?? true
+        stability = saved.string(forKey: Keys.stability).flatMap(KeyStability.init(rawValue:)) ?? .steady
         audio.analysis.majorOnly = !showMinorKeys
+        applyStability()
     }
 
     /// Key in the chosen notation ("C major" / "8B"), or "—".
@@ -130,7 +141,20 @@ final class AnalysisViewModel: ObservableObject {
         timer = nil
     }
 
+    /// Applies the stability setting to the main output and every channel engine.
+    private func applyStability() {
+        let t = stability.timing
+        audio.analysis.setKeySmoothingSeconds(t.smoothing, holdSeconds: t.hold)
+        audio.strips.forEach { $0.engine.setKeySmoothingSeconds(t.smoothing, holdSeconds: t.hold) }
+        appliedStripCount = audio.strips.count
+    }
+    private var appliedStripCount = -1
+
+    /// Last key / BPM per channel, kept while the channel's fader is down.
+    private var heldChannel: [Int: (key: DetectedKey?, bpm: Float?)] = [:]
+
     func resetKey() {
+        heldChannel.removeAll()
         audio.resetAllAnalysis()
     }
 
@@ -186,6 +210,7 @@ final class AnalysisViewModel: ObservableObject {
     }
 
     private func updateChannels(now: Date, dt: Float) {
+        if audio.strips.count != appliedStripCount { applyStability() }   // strips were rebuilt
         var result: [ChannelReadout] = []
         for strip in audio.strips {
             let s = strip.engine.snapshot()
@@ -197,10 +222,19 @@ final class AnalysisViewModel: ObservableObject {
 
             let left = strip.selection.leftIndex + 1
             var r = ChannelReadout(id: strip.id, name: strip.name, channelsLabel: "USB \(left) + \(left + 1)")
-            r.key = Self.reliableKey(s)
-            r.bpm = Self.reliableBpm(s)
             r.levelDb = state.db
             r.hasSignal = now.timeIntervalSince(state.lastSignal) < 1.0
+            // Fader down: the engine pauses on silence and keeps its key, and we also
+            // remember the last key/BPM here so the card keeps showing them (dimmed)
+            // until the channel plays something else or keys are reset.
+            var held = heldChannel[strip.id] ?? (key: nil, bpm: nil)
+            if let key = Self.reliableKey(s) { held.key = key }
+            else if r.hasSignal { held.key = nil }                // playing, but no clear key
+            if let bpm = Self.reliableBpm(s) { held.bpm = bpm }
+            else if r.hasSignal { held.bpm = nil }
+            heldChannel[strip.id] = held
+            r.key = held.key
+            r.bpm = held.bpm
             result.append(r)
         }
         if result != channels { channels = result }

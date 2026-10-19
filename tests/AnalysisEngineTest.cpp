@@ -158,6 +158,48 @@ int main()
         check (maxRelErr < 1e-3, "FFT magnitudes match DFT");
     }
 
+    // --- Fader down: silence must not erase the key ---------------------------
+    {
+        AnalysisEngine e;
+        e.setMajorOnly (false);
+        e.prepare (kSR, 512);
+        std::vector<float> sig ((size_t) (kSR * 6.0), 0.0f);
+        for (int m : { 57, 59, 60, 62, 64, 65, 67, 69 }) addNote (sig, m, 0.05f);
+        feed (e, sig);
+        std::vector<float> silence ((size_t) (kSR * 20.0), 0.0f);
+        feed (e, silence);
+        AnalysisEngine::Snapshot s; e.getSnapshot (s);
+        std::printf ("A minor, then 20 s silence -> pc %d (%s), corr %.2f\n", s.keyPitchClass, s.keyIsMinor ? "minor" : "major", s.keyCorrelation);
+        check (s.keyPitchClass == 9 && s.keyIsMinor && s.keyCorrelation >= 0.6f, "key held through 20 s of silence (fader down)");
+    }
+
+    // --- Stability: I-vi-IV-V chord loop in C must not flip the key (Steady) ---
+    {
+        AnalysisEngine e;
+        e.setMajorOnly (false);
+        e.setSmoothingSeconds (30.0);
+        e.setKeyHoldSeconds (8.0);
+        e.prepare (kSR, 512);
+        const std::vector<std::vector<int>> chords { { 48, 60, 64, 67 }, { 45, 57, 60, 64 }, { 41, 53, 57, 60 }, { 43, 55, 59, 62 } };
+        int changes = 0, lastPc = -1; bool lastMinor = false;
+        const int barSamples = (int) (kSR * 2.0);
+        for (int bar = 0; bar < 40; ++bar)          // 80 s
+        {
+            std::vector<float> sig ((size_t) barSamples, 0.0f);
+            for (int m : chords[(size_t) (bar % 4)]) addNote (sig, m, 0.05f);
+            feed (e, sig);
+            AnalysisEngine::Snapshot s; e.getSnapshot (s);
+            if (bar >= 6 && s.keyPitchClass >= 0)
+            {
+                if (lastPc >= 0 && (s.keyPitchClass != lastPc || s.keyIsMinor != lastMinor)) ++changes;
+                lastPc = s.keyPitchClass; lastMinor = s.keyIsMinor;
+            }
+        }
+        std::printf ("Steady, C I-vi-IV-V loop: key %d (%s), %d change(s)\n", lastPc, lastMinor ? "minor" : "major", changes);
+        check (lastPc == 0 && ! lastMinor, "Steady: chord loop in C reads C major");
+        check (changes == 0, "Steady: no key flips during the chord progression");
+    }
+
     std::printf (failures == 0 ? "\nAll AnalysisEngine tests passed.\n" : "\n%d failure(s).\n", failures);
     return failures == 0 ? 0 : 1;
 }

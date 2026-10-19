@@ -84,7 +84,14 @@ public:
     void getSpectrum (std::vector<float>& dest);
 
     // --- Settings (UI thread, take effect on the next analysis frame) ---------
-    void setSmoothing (float smoothing01) noexcept { smoothing.store (smoothing01); }   // 0..0.99, default 0.85
+    void setSmoothing (float smoothing01) noexcept { smoothingSeconds.store (0.1f + smoothing01 * 3.9f); } // desktop knob 0..0.99
+    /** Key stability. `seconds` = how long the note profile is averaged over;
+        `holdSeconds` = how long a different key must keep winning before it's shown. */
+    void setSmoothingSeconds (double seconds) noexcept { smoothingSeconds.store ((float) seconds); }
+    void setKeyHoldSeconds (double seconds)   noexcept { keyHoldSeconds.store ((float) seconds); }
+    /** Below this level (dBFS, RMS of the frame) the key analysis pauses and keeps
+        its last result, e.g. while a channel fader is down. */
+    void setSilenceGateDb (float db)          noexcept { silenceGateDb.store (db); }
     void setFrozen    (bool shouldFreeze) noexcept { frozen.store (shouldFreeze); }
     void setTunerMode (TunerMode m)       noexcept { tunerMode.store ((int) m); }
     /** The desktop plug-in shows major keys only. Turn this off to also report minor
@@ -132,7 +139,9 @@ private:
     int    tunerSilenceCount   = 0;
 
     // Settings.
-    std::atomic<float> smoothing { 0.85f };
+    std::atomic<float> smoothingSeconds { 3.4f };   // desktop default (knob 0.85)
+    std::atomic<float> keyHoldSeconds { 0.7f };
+    std::atomic<float> silenceGateDb { -50.0f };
     std::atomic<bool>  frozen    { false };
     std::atomic<int>   tunerMode { 0 };
     std::atomic<bool>  majorOnlyRequested { true };

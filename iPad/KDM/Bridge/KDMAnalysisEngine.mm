@@ -52,6 +52,7 @@
     BOOL _majorOnly;
     KDMTunerMode _tunerMode;
     BOOL _tunerEnabled;
+    float _silenceGateDb;
 }
 
 - (instancetype)init
@@ -63,6 +64,7 @@
         _majorOnly = YES;
         _tunerMode = KDMTunerModeAuto;
         _tunerEnabled = YES;
+        _silenceGateDb = -50.0f;
     }
     return self;
 }
@@ -105,6 +107,19 @@
 {
     _majorOnly = majorOnly;
     _engine->setMajorOnly (majorOnly);
+}
+
+- (void)setKeySmoothingSeconds:(double)seconds holdSeconds:(double)hold
+{
+    _engine->setSmoothingSeconds (seconds);
+    _engine->setKeyHoldSeconds (hold);
+}
+
+- (float)silenceGateDb { return _silenceGateDb; }
+- (void)setSilenceGateDb:(float)db
+{
+    _silenceGateDb = db;
+    _engine->setSilenceGateDb (db);
 }
 
 - (BOOL)tunerEnabled { return _tunerEnabled; }
