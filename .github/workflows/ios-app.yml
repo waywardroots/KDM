@@ -62,16 +62,23 @@ jobs:
         run: xcodebuild -version
 
       - name: Build (Release, unsigned, generic iPad device)
-        run: >
-          xcodebuild
-          -project iPad/KDM.xcodeproj
-          -scheme KDM
-          -configuration Release
-          -destination "generic/platform=iOS"
-          CODE_SIGNING_ALLOWED=NO
-          CODE_SIGNING_REQUIRED=NO
-          CODE_SIGN_IDENTITY=""
-          build
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project iPad/KDM.xcodeproj \
+            -scheme KDM \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee build-output.txt || {
+              # Surface compile errors as annotations (visible without the raw log).
+              grep -E "error:" build-output.txt | sort -u | head -30 | while IFS= read -r line; do
+                echo "::error::${line}"
+              done
+              exit 1
+            }
 
       - name: Build (Debug, iPad simulator)
         run: >
