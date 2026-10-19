@@ -14,10 +14,22 @@ public struct DeckStatus: Equatable {
     public var playing = false
     public var faderPosition: Double?   // ExternalMixerVolume, 0…1
     public var isMaster = false
+    /// The player number set on the unit (Preferences → Player), if known.
+    public var player: Int?
 
     public init(device: String, deck: Int) {
         self.device = device
         self.deck = deck
+    }
+
+    /// Stable within a session: "<device>#<deck>".
+    public var id: String { "\(device)#\(deck)" }
+
+    /// "Player 1", "Player 1 B" (an SC6000's second layer); without a player
+    /// number, "<device> deck N".
+    public var label: String {
+        if let player { return deck == 2 ? "Player \(player) B" : "Player \(player)" }
+        return "\(device) deck \(deck)"
     }
 }
 
@@ -53,6 +65,7 @@ public final class StageLinQClient: @unchecked Sendable {
     private var notedMixers: Set<Token> = []
     private var decks: [String: DeckStatus] = [:]          // "<address>#<deck>"
     private var mixers: [String: MixerStatus] = [:]        // address
+    private var playerNumbers: [String: Int] = [:]         // address -> Preferences/Player
 
     /// Software names that aren't DJ gear (analysers, lighting / VJ apps, other clients).
     public static let ignoredSoftware: Set<String> = ["OfflineAnalyzer", "SoundSwitch", "SSS0", "Resolume", "NowPlaying", "Now Playing"]
@@ -133,6 +146,7 @@ public final class StageLinQClient: @unchecked Sendable {
             conn.onClosed = { [weak self] dev, _ in
                 // Forget it; an announcement after the retry delay reconnects.
                 self?.connections[dev.token] = nil
+                self?.forgetDecks(of: dev)
                 self?.retryAfter[dev.token] = Date().addingTimeInterval(5)
                 self?.publishDevices()
             }
@@ -163,7 +177,15 @@ public final class StageLinQClient: @unchecked Sendable {
         let deviceLabel = "\(device.softwareName) \(device.address)"
         var changed = false
 
-        if path.hasPrefix("/Mixer/") {
+        if path == "/Client/Preferences/Player" {
+            let n = value.string.flatMap { Int($0) } ?? value.number.map { Int($0) }
+            playerNumbers[device.address] = n
+            for (id, var d) in decks where id.hasPrefix("\(device.address)#") && d.player != n {
+                d.player = n
+                decks[id] = d
+                changed = true
+            }
+        } else if path.hasPrefix("/Mixer/") {
             var m = mixers[device.address] ?? MixerStatus(device: deviceLabel)
             let leaf = String(path.dropFirst("/Mixer/".count))
             if leaf.hasPrefix("CH"), leaf.hasSuffix("faderPosition"), let ch = Int(leaf.dropFirst(2).prefix(1)) {
@@ -177,6 +199,7 @@ public final class StageLinQClient: @unchecked Sendable {
         } else if path.hasPrefix("/Engine/Deck"), let deck = Int(path.dropFirst("/Engine/Deck".count).prefix(1)) {
             let id = "\(device.address)#\(deck)"
             var d = decks[id] ?? DeckStatus(device: deviceLabel, deck: deck)
+            d.player = playerNumbers[device.address]
             let leaf = path.split(separator: "/").dropFirst(2).joined(separator: "/")   // e.g. "Track/SongName"
             switch leaf {
             case "Track/SongLoaded":
@@ -203,6 +226,19 @@ public final class StageLinQClient: @unchecked Sendable {
             let cb = onChange
             DispatchQueue.main.async { cb?(decksNow, mixersNow) }
         }
+    }
+
+    /// A device went away: drop its decks so stale keys aren't shown.
+    private func forgetDecks(of device: DiscoveredDevice) {
+        let prefix = "\(device.address)#"
+        let before = decks.count
+        decks = decks.filter { !$0.key.hasPrefix(prefix) }
+        mixers[device.address] = nil
+        guard decks.count != before else { return }
+        let decksNow = decks.values.sorted { ($0.device, $0.deck) < ($1.device, $1.deck) }
+        let mixersNow = mixers.values.sorted { $0.device < $1.device }
+        let cb = onChange
+        DispatchQueue.main.async { cb?(decksNow, mixersNow) }
     }
 
     private func publishDevices() {

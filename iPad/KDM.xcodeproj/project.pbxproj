@@ -19,6 +19,14 @@
 			isa = PBXBuildFile;
 			fileRef = 5AA7815E7B54DA8491E36B2A;
 		};
+		171A69DFC92695CA0EDC0077 = {
+			isa = PBXBuildFile;
+			fileRef = 42840BF13A9FC8AC92FCD1FE;
+		};
+		1E9267491498D2CC4C8101D8 = {
+			isa = PBXBuildFile;
+			fileRef = C3C2558C697D43C449D079EA;
+		};
 		258126E39C9BF8AF01AE757E = {
 			isa = PBXBuildFile;
 			fileRef = D23F0C31340F5036A12B8329;
@@ -30,6 +38,10 @@
 		352274C23D3AF491B44C2F46 = {
 			isa = PBXBuildFile;
 			fileRef = 97F79A53C3F3233656B8DF90;
+		};
+		3A1C3C49C4B741B3D796699E = {
+			isa = PBXBuildFile;
+			fileRef = A3060FBD52B457CE102DB4E2;
 		};
 		3A7F4AADBF45FC4088421495 = {
 			isa = PBXBuildFile;
@@ -43,6 +55,10 @@
 			isa = PBXBuildFile;
 			fileRef = 3DFF63C21213E50289CA3548;
 		};
+		68C1D88C0672865294F1FE48 = {
+			isa = PBXBuildFile;
+			fileRef = 6A0CEDC7B1FF5F9E73C1F118;
+		};
 		771FD20DF8C1AF5212790DCD = {
 			isa = PBXBuildFile;
 			fileRef = 2B5FE236FC8DD66D751834BC;
@@ -55,6 +71,14 @@
 			isa = PBXBuildFile;
 			fileRef = FEF27823192CDB21ECCB8749;
 		};
+		BED2E0D55D7918E5AAE7F145 = {
+			isa = PBXBuildFile;
+			fileRef = 3D485E53DF2EB1B0BD388A3C;
+		};
+		C6AB9BFD38CC268EB4574EE6 = {
+			isa = PBXBuildFile;
+			fileRef = BFE9EB4D1511E2B2B3C3FF9C;
+		};
 		CCA89B44E28E3A30DAEE4762 = {
 			isa = PBXBuildFile;
 			fileRef = 74177051820D5B837F12F34A;
@@ -66,6 +90,10 @@
 		DC048851C6A3A1A18A5D60EF = {
 			isa = PBXBuildFile;
 			fileRef = 33F47E603B7225952F84F7DF;
+		};
+		E658A3E35D5DE60B1B2BDF04 = {
+			isa = PBXBuildFile;
+			fileRef = 571CB458F436538A23628FC3;
 		};
 		FDD5490644E5AE26CCC48A92 = {
 			isa = PBXBuildFile;
@@ -110,6 +138,12 @@
 			path = MinimalView.swift;
 			sourceTree = "<group>";
 		};
+		3D485E53DF2EB1B0BD388A3C = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = PlayerLink.swift;
+			sourceTree = "<group>";
+		};
 		3DFF63C21213E50289CA3548 = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.cpp.cpp;
@@ -122,10 +156,22 @@
 			path = KDMApp.swift;
 			sourceTree = "<group>";
 		};
+		42840BF13A9FC8AC92FCD1FE = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = DeviceConnection.swift;
+			sourceTree = "<group>";
+		};
 		4CE09A205F7C328896B79953 = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.c.h;
 			path = PitchDetector.h;
+			sourceTree = "<group>";
+		};
+		571CB458F436538A23628FC3 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = Codec.swift;
 			sourceTree = "<group>";
 		};
 		5823FEA9EB6E6EA78168310A = {
@@ -138,6 +184,12 @@
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
 			path = AnalysisViewModel.swift;
+			sourceTree = "<group>";
+		};
+		6A0CEDC7B1FF5F9E73C1F118 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = StageLinQClient.swift;
 			sourceTree = "<group>";
 		};
 		74177051820D5B837F12F34A = {
@@ -164,6 +216,12 @@
 			path = ChromaKeyDetector.cpp;
 			sourceTree = "<group>";
 		};
+		A3060FBD52B457CE102DB4E2 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = StateValue.swift;
+			sourceTree = "<group>";
+		};
 		B38F7CAB83C1270106ACAF2C = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.cpp.cpp;
@@ -180,6 +238,18 @@
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.c.h;
 			path = KDMAnalysisEngine.h;
+			sourceTree = "<group>";
+		};
+		BFE9EB4D1511E2B2B3C3FF9C = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = MusicalKey.swift;
+			sourceTree = "<group>";
+		};
+		C3C2558C697D43C449D079EA = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = Discovery.swift;
 			sourceTree = "<group>";
 		};
 		D23F0C31340F5036A12B8329 = {
@@ -245,6 +315,7 @@
 				E729C4212180124E7FFFE1A1,
 				33F47E603B7225952F84F7DF,
 				BD6B1DC37B6327342EF44C35,
+				3D485E53DF2EB1B0BD388A3C,
 				4109DB8585B48263D709C856,
 				4FDE07D038078294F37C5375,
 				D23F0C31340F5036A12B8329,
@@ -252,6 +323,20 @@
 				29902DF19882080A6FF75616,
 			);
 			path = KDM;
+			sourceTree = "<group>";
+		};
+		16774D7A2CD51E8A62053487 = {
+			isa = PBXGroup;
+			children = (
+				571CB458F436538A23628FC3,
+				A3060FBD52B457CE102DB4E2,
+				BFE9EB4D1511E2B2B3C3FF9C,
+				C3C2558C697D43C449D079EA,
+				42840BF13A9FC8AC92FCD1FE,
+				6A0CEDC7B1FF5F9E73C1F118,
+			);
+			name = "StageLinQ (../StageLinQ)";
+			path = ../StageLinQ/Sources/StageLinQ;
 			sourceTree = "<group>";
 		};
 		2AC8BA37DAC32D5437812408 = {
@@ -276,6 +361,7 @@
 			children = (
 				15FE5F13B372136922FEE801,
 				9D10A42589C8F5479091BEBD,
+				16774D7A2CD51E8A62053487,
 				2AC8BA37DAC32D5437812408,
 			);
 			sourceTree = "<group>";
@@ -382,11 +468,18 @@
 				A387A43FDDD022B711084D3D,
 				DC048851C6A3A1A18A5D60EF,
 				428A0388A8CC46CE623413F5,
+				BED2E0D55D7918E5AAE7F145,
 				CCA89B44E28E3A30DAEE4762,
 				5B7CE9AA52F4A1956CC18538,
 				D24574D25CB39E46DD7AE327,
 				FDD5490644E5AE26CCC48A92,
 				3A7F4AADBF45FC4088421495,
+				E658A3E35D5DE60B1B2BDF04,
+				3A1C3C49C4B741B3D796699E,
+				C6AB9BFD38CC268EB4574EE6,
+				1E9267491498D2CC4C8101D8,
+				171A69DFC92695CA0EDC0077,
+				68C1D88C0672865294F1FE48,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -411,6 +504,7 @@
 				INFOPLIST_FILE = KDM/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = KDM;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "KDM listens to the audio input (your DJ mixer or audio interface) to detect the musical key and tempo. Audio is analysed on the iPad and never recorded or sent anywhere.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "KDM connects to your DJ media players (Denon / Engine DJ) on the local network to read the key and tempo of the tracks they have loaded.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -504,6 +598,7 @@
 				INFOPLIST_FILE = KDM/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = KDM;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "KDM listens to the audio input (your DJ mixer or audio interface) to detect the musical key and tempo. Audio is analysed on the iPad and never recorded or sent anywhere.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "KDM connects to your DJ media players (Denon / Engine DJ) on the local network to read the key and tempo of the tracks they have loaded.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

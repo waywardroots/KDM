@@ -16,6 +16,32 @@ struct ChannelReadout: Identifiable, Equatable {
     var bpm: Float?             // nil = no confident tempo
     var levelDb: Float = AnalysisViewModel.floorDb   // peak with fall-off
     var hasSignal = false
+    /// Set when the key comes from a media player ("Player 1"), not the audio.
+    var player: String? = nil
+    var track: String? = nil
+}
+
+/// Which media-player deck feeds a mixer channel.
+enum PlayerAssignment: Equatable, Hashable {
+    case auto                 // matched by watching faders and levels
+    case none                 // audio only
+    case deck(String)         // a deck label, "Player 1"
+
+    var storageValue: String {
+        switch self {
+        case .auto: return "auto"
+        case .none: return "none"
+        case .deck(let label): return label
+        }
+    }
+
+    init(storageValue: String) {
+        switch storageValue {
+        case "auto": self = .auto
+        case "none": self = .none
+        default: self = .deck(storageValue)
+        }
+    }
 }
 
 /// Polls the analysis engines ~30 times a second and turns their raw numbers into
@@ -79,7 +105,21 @@ final class AnalysisViewModel: ObservableObject {
         }
     }
 
+    /// Per mixer channel (strip id): which player deck feeds it. Missing = auto.
+    @Published var playerAssignments: [Int: PlayerAssignment] {
+        didSet {
+            defaults.set(Dictionary(uniqueKeysWithValues: playerAssignments.map { (String($0.key), $0.value.storageValue) }),
+                         forKey: Keys.playerAssignments)
+        }
+    }
+    /// What auto-matching currently thinks: channel id -> deck label.
+    @Published private(set) var autoMatches: [Int: String] = [:]
+
     private let audio: AudioInputManager
+    let players: PlayerLink
+    /// Evidence that deck (label) feeds channel (id): grows while the deck plays
+    /// with its fader up and the channel has signal, shrinks on contradictions.
+    private var matchScore: [String: [Int: Float]] = [:]
     private var engine: KDMAnalysisEngine { audio.analysis }
     private var channelLevels: [Int: (db: Float, lastSignal: Date)] = [:]
     /// `-KDMDemo` launch argument: fixed sample values, for screenshots/design.
@@ -96,13 +136,19 @@ final class AnalysisViewModel: ObservableObject {
         static let notation = "kdm.key.notation"
         static let showMinorKeys = "kdm.key.showMinor"
         static let stability = "kdm.key.stability"
+        static let playerAssignments = "kdm.players.assignments"
     }
 
     nonisolated static let noteNames = KeyNotation.noteNames
 
-    init(audio: AudioInputManager) {
+    init(audio: AudioInputManager, players: PlayerLink) {
         self.audio = audio
+        self.players = players
         let saved = UserDefaults.standard
+        let storedAssignments = saved.dictionary(forKey: Keys.playerAssignments) as? [String: String] ?? [:]
+        playerAssignments = Dictionary(uniqueKeysWithValues: storedAssignments.compactMap { k, v in
+            Int(k).map { ($0, PlayerAssignment(storageValue: v)) }
+        })
         // DJ defaults: Camelot notation, minor keys on (needed for A codes and the
         // relative / parallel moves). A saved choice still wins.
         notation = saved.string(forKey: Keys.notation).flatMap(KeyNotation.init(rawValue:)) ?? .camelot
@@ -195,8 +241,6 @@ final class AnalysisViewModel: ObservableObject {
             keyDetail = chromaSum > 1e-4 ? "no clear key" : "waiting…"
             keyIsReliable = false
         }
-        refreshKeyText()
-
         // BPM: shown when the tempo estimate is confident enough (>= 0.25).
         if let bpm = Self.reliableBpm(s) {
             bpmText = Self.bpmText(bpm)
@@ -206,11 +250,83 @@ final class AnalysisViewModel: ObservableObject {
             bpmIsReliable = false
         }
 
+        // Media players connected: the main key is the key of the deck leading
+        // the mix (the master deck if it's audible, otherwise the one with its
+        // fader highest), exactly as the player analysed it.
+        if let deck = mainPlayerDeck(), let key = deck.key {
+            lastKey = (key.pitchClass, key.isMinor)
+            keyIsReliable = true
+            keyDetail = "from \(deck.label)" + (deck.trackLine.isEmpty ? "" : " · \(deck.trackLine)")
+            if let bpm = deck.bpm {
+                bpmText = Self.bpmText(bpm)
+                bpmIsReliable = true
+            }
+        }
+        refreshKeyText()
+
         updateChannels(now: now, dt: dt)
+    }
+
+    /// The deck leading the mix, or nil when no player deck is audible.
+    private func mainPlayerDeck() -> PlayerDeck? {
+        let audible = players.decks.filter { $0.isAudible && $0.key != nil }
+        if let master = audible.first(where: { $0.isMaster }) { return master }
+        return audible.max { ($0.fader ?? 0) < ($1.fader ?? 0) }
+    }
+
+    /// Learns which deck feeds which channel from what happens together: a deck
+    /// playing with its fader up while a channel has signal (+), the same deck
+    /// up while the channel is silent (−), or the deck stopped while the channel
+    /// plays (−). Works with pre- or post-fader USB sends.
+    private func updateMatches(signal: [Int: Bool], dt: Float) {
+        let decks = players.decks
+        guard !decks.isEmpty else {
+            if !autoMatches.isEmpty { autoMatches = [:] }
+            return
+        }
+        let step = dt * 30          // ≈ 1 per tick at 30 Hz
+        for deck in decks {
+            var row = matchScore[deck.label] ?? [:]
+            for (channel, hasSignal) in signal {
+                var score = row[channel] ?? 0
+                let up = deck.playing && (deck.fader ?? 0) > 0.25
+                if up && hasSignal { score += step }
+                else if up && !hasSignal { score -= step }
+                else if !deck.playing && hasSignal { score -= step }
+                row[channel] = min(300, max(-300, score))
+            }
+            matchScore[deck.label] = row
+        }
+        // Best pairs first, each deck and channel used once; needs ~1.5 s of evidence.
+        var pairs: [(label: String, channel: Int, score: Float)] = []
+        for (label, row) in matchScore where decks.contains(where: { $0.label == label }) {
+            for (channel, score) in row where score >= 45 { pairs.append((label, channel, score)) }
+        }
+        pairs.sort { $0.score > $1.score }
+        var result: [Int: String] = [:]
+        var used: Set<String> = []
+        for p in pairs where result[p.channel] == nil && !used.contains(p.label) {
+            result[p.channel] = p.label
+            used.insert(p.label)
+        }
+        if result != autoMatches { autoMatches = result }
+    }
+
+    /// The player deck feeding a channel, from the manual choice or auto-matching.
+    func playerDeck(forChannel id: Int) -> PlayerDeck? {
+        let label: String?
+        switch playerAssignments[id] ?? .auto {
+        case .none: label = nil
+        case .deck(let l): label = l
+        case .auto: label = autoMatches[id]
+        }
+        guard let label else { return nil }
+        return players.decks.first { $0.label == label }
     }
 
     private func updateChannels(now: Date, dt: Float) {
         if audio.strips.count != appliedStripCount { applyStability() }   // strips were rebuilt
+        var signal: [Int: Bool] = [:]
         var result: [ChannelReadout] = []
         for strip in audio.strips {
             let s = strip.engine.snapshot()
@@ -235,9 +351,19 @@ final class AnalysisViewModel: ObservableObject {
             heldChannel[strip.id] = held
             r.key = held.key
             r.bpm = held.bpm
+            signal[strip.id] = state.db > -50      // level with fall-off, so beats' gaps don't count as silence
+            // A media player feeds this channel: use its key and tempo (they're
+            // there as soon as a track loads, even with the fader down).
+            if let deck = playerDeck(forChannel: strip.id), deck.loaded {
+                r.player = deck.label
+                r.track = deck.trackLine.isEmpty ? nil : deck.trackLine
+                if let key = deck.key { r.key = key }
+                if let bpm = deck.bpm { r.bpm = bpm }
+            }
             result.append(r)
         }
         if result != channels { channels = result }
+        updateMatches(signal: signal, dt: dt)
     }
 
     /// Key shown only when the chroma matches a key profile well (corr >= 0.6),
@@ -269,9 +395,11 @@ final class AnalysisViewModel: ObservableObject {
         bpmIsReliable = true
         channels = [
             ChannelReadout(id: 0, name: "Ch 1", channelsLabel: "USB 1 + 2",
-                           key: DetectedKey(pitchClass: 9, isMinor: true), bpm: 124.0, levelDb: -11, hasSignal: true),
+                           key: DetectedKey(pitchClass: 9, isMinor: true), bpm: 124.0, levelDb: -11, hasSignal: true,
+                           player: "Player 1", track: "Demo Artist – Demo Track"),
             ChannelReadout(id: 2, name: "Ch 2", channelsLabel: "USB 3 + 4",
-                           key: DetectedKey(pitchClass: 4, isMinor: true), bpm: 124.0, levelDb: -14, hasSignal: true),
+                           key: DetectedKey(pitchClass: 4, isMinor: true), bpm: 124.0, levelDb: -14, hasSignal: true,
+                           player: "Player 2", track: "Another Artist – Second Track"),
             ChannelReadout(id: 4, name: "Ch 3", channelsLabel: "USB 5 + 6",
                            key: DetectedKey(pitchClass: 8, isMinor: false), bpm: 128.0, levelDb: -26, hasSignal: true),
             ChannelReadout(id: 6, name: "Ch 4", channelsLabel: "USB 7 + 8",

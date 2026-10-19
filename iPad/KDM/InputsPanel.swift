@@ -5,9 +5,11 @@ import SwiftUI
 struct InputsPanel: View {
     @ObservedObject var audio: AudioInputManager
     @ObservedObject var model: AnalysisViewModel
+    @ObservedObject var players: PlayerLink
     var onDone: () -> Void
 
     @State private var showDiagnostics = false
+    @State private var showPlayerLog = false
     @State private var showSingleChannels = false
 
     var body: some View {
@@ -27,6 +29,7 @@ struct InputsPanel: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     sourceCard
+                    playersCard
                     mixerChannelsCard
                     diagnosticsCard
                 }
@@ -155,6 +158,117 @@ struct InputsPanel: View {
             return "\(option.label) — \(names[l]) / \(names[r])"
         }
         return "\(option.label) — \(names[l])"
+    }
+
+    // MARK: - Media players (StageLinQ)
+
+    private var playersCard: some View {
+        Card(title: "Media players") {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Read keys from the media players", isOn: $players.enabled)
+
+                if players.enabled {
+                    HStack(spacing: 8) {
+                        Circle().fill(playerStatusColor).frame(width: 10, height: 10)
+                        Text(playerStatusText).font(.callout)
+                        Spacer()
+                        Button("Reconnect") { players.restart() }
+                            .buttonStyle(.bordered)
+                            .font(.callout)
+                    }
+
+                    if players.status == .needsPermission {
+                        Text("iPadOS is blocking the network search. KDM needs Apple's multicast networking permission before it can find the players; until then keys come from the audio.")
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
+                    } else if players.decks.isEmpty {
+                        Text("Connect the iPad to the players' network: plug it into a free Ethernet port on the mixer (a USB-C hub with Ethernet keeps the mixer's USB audio connected too), or join the same Wi-Fi. Denon SC6000 / SC5000 / Prime players with Engine DJ.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    ForEach(players.decks.filter { $0.loaded }) { deck in
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text(deck.label).font(.body.weight(.semibold)).frame(width: 84, alignment: .leading)
+                            Text(model.keyText(deck.key)).font(.body.weight(.bold).monospacedDigit()).frame(width: 64, alignment: .leading)
+                            Text(AnalysisViewModel.bpmText(deck.bpm)).monospacedDigit().foregroundStyle(.secondary).frame(width: 56, alignment: .leading)
+                            Text(deck.trackLine).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                            Spacer(minLength: 0)
+                            Image(systemName: deck.playing ? "play.fill" : "pause.fill")
+                                .font(.caption)
+                                .foregroundStyle(deck.isAudible ? Color.green : Color.secondary)
+                        }
+                    }
+
+                    if !model.channels.isEmpty && !players.decks.isEmpty {
+                        Divider()
+                        Text("Which player is on each mixer channel")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Auto learns it as you play: bring a fader up on a playing deck and its channel is matched within a few seconds.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        ForEach(model.channels) { ch in
+                            LabeledRow(ch.name) {
+                                Menu {
+                                    Button(autoTitle(for: ch.id)) { model.playerAssignments[ch.id] = nil }
+                                    Button("Audio only") { model.playerAssignments[ch.id] = PlayerAssignment.none }
+                                    ForEach(players.decks.map(\.label), id: \.self) { label in
+                                        Button(label) { model.playerAssignments[ch.id] = .deck(label) }
+                                    }
+                                } label: {
+                                    MenuLabel(text: assignmentTitle(for: ch.id))
+                                }
+                            }
+                        }
+                    }
+
+                    DisclosureGroup("Connection log", isExpanded: $showPlayerLog) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            ForEach(Array(players.log.enumerated()), id: \.offset) { _, line in
+                                Text(line)
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 6)
+                    }
+                    .font(.callout)
+                }
+            }
+        }
+    }
+
+    private var playerStatusText: String {
+        switch players.status {
+        case .off:                  return "Off"
+        case .searching:            return "Searching for players…"
+        case .connected(let n):     return n == 1 ? "Connected to 1 player" : "Connected to \(n) players"
+        case .needsPermission:      return "Waiting for network permission"
+        case .failed(let message):  return "Couldn't start: \(message)"
+        }
+    }
+
+    private var playerStatusColor: Color {
+        switch players.status {
+        case .connected:                return .green
+        case .searching:                return .yellow
+        case .needsPermission, .failed: return .orange
+        case .off:                      return .gray
+        }
+    }
+
+    private func autoTitle(for channel: Int) -> String {
+        model.autoMatches[channel].map { "Auto (\($0))" } ?? "Auto"
+    }
+
+    private func assignmentTitle(for channel: Int) -> String {
+        switch model.playerAssignments[channel] ?? .auto {
+        case .auto:            return model.autoMatches[channel].map { "Auto · \($0)" } ?? "Auto · not matched yet"
+        case .none:            return "Audio only"
+        case .deck(let label): return label
+        }
     }
 
     // MARK: - Mixer channels

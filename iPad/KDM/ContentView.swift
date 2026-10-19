@@ -7,6 +7,7 @@ import UIKit
 struct ContentView: View {
     @ObservedObject var audio: AudioInputManager
     @ObservedObject var model: AnalysisViewModel
+    @ObservedObject var players: PlayerLink
 
     @State private var showInputs = false
     /// Minimal view (key + note bars only). Remembered between launches.
@@ -110,7 +111,7 @@ struct ContentView: View {
         }
         .buttonStyle(.bordered)
         .popover(isPresented: $showInputs, arrowEdge: .top) {
-            InputsPanel(audio: audio, model: model) { showInputs = false }
+            InputsPanel(audio: audio, model: model, players: players) { showInputs = false }
                 .frame(minWidth: 520, idealWidth: 560, minHeight: 480, idealHeight: 660)
         }
         .accessibilityHint("Choose the input source and channels, and see audio diagnostics")
@@ -118,9 +119,16 @@ struct ContentView: View {
 
     /// e.g. "X1800 Prime · 10 ch", shown under the status badge.
     private var sourceSummary: String {
-        guard let input = audio.currentInput else { return "No input" }
-        guard audio.channelCount > 0 else { return input.name }
-        return "\(input.name) · \(audio.channelCount) ch"
+        var parts: [String] = []
+        if let input = audio.currentInput {
+            parts.append(audio.channelCount > 0 ? "\(input.name) · \(audio.channelCount) ch" : input.name)
+        } else {
+            parts.append("No input")
+        }
+        if case .connected(let n) = players.status {
+            parts.append(n == 1 ? "1 player" : "\(n) players")
+        }
+        return parts.joined(separator: " · ")
     }
 
     private var statusBadge: some View {
@@ -315,9 +323,17 @@ struct ChannelCard: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(channel.name).font(.headline)
                 Spacer()
-                Text(channel.channelsLabel)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                if let player = channel.player {
+                    // Key and BPM come from this media player.
+                    Label(player, systemImage: "dot.radiowaves.left.and.right")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .lineLimit(1)
+                } else {
+                    Text(channel.channelsLabel)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
 
             Text(keyText)
@@ -352,6 +368,12 @@ struct ChannelCard: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
+
+            // Track from the media player (blank line otherwise, so cards line up).
+            Text(channel.track ?? " ")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
 
             // Slim level bar.
             GeometryReader { geo in

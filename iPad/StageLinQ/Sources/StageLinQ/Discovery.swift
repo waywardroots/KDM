@@ -157,11 +157,20 @@ final class Discovery: @unchecked Sendable {
             let err = errno
             if reportedSendErrors.insert("\(label)#\(err)").inserted {
                 onLog?("Announcement to \(label) failed: \(String(cString: strerror(err)))"
-                       + (err == EPERM ? " (on iPad: needs the multicast networking entitlement)" : ""))
+                       + (Self.permissionError(err) ? " (on iPad: needs the multicast networking entitlement)" : ""))
             }
         } else if announcedTo.insert(label).inserted {
             onLog?("Announcing to \(label)")
         }
+    }
+
+    /// On iPadOS a missing multicast entitlement shows up as EPERM or EHOSTUNREACH.
+    private static func permissionError(_ err: Int32) -> Bool {
+        #if os(iOS)
+        return err == EPERM || err == EHOSTUNREACH
+        #else
+        return err == EPERM
+        #endif
     }
 
     private static func ip(_ addr: in_addr_t) -> String {
