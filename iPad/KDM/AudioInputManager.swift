@@ -123,7 +123,16 @@ final class AudioInputManager: ObservableObject {
     }()
     private var stripEnginePool: [KDMAnalysisEngine] = []
 
-    private let engine = AVAudioEngine()
+    /// Recreated on every restart: AVAudioEngine caches the input format it first
+    /// saw (e.g. the built-in mic's mono), so reusing it after switching to a USB
+    /// mixer would keep reporting the old channel count.
+    private var engine = AVAudioEngine()
+    private var engineConfigObserver: NSObjectProtocol?
+    /// What the running engine was built for, to spot route changes that matter.
+    private var engineInputUID: String?
+    private var engineChannelCount = 0
+    /// Extra rebuilds while a new device's channels are still being negotiated.
+    private var settleRetries = 0
     private var tapInstalled = false
     private var observers: [NSObjectProtocol] = []
     private var pendingRestart: DispatchWorkItem?
@@ -155,6 +164,8 @@ final class AudioInputManager: ObservableObject {
     func restart() {
         pendingRestart?.cancel()
         stopEngine()
+        engine = AVAudioEngine()
+        observeEngineConfiguration()
 
         do {
             try configureSession()
@@ -164,6 +175,16 @@ final class AudioInputManager: ObservableObject {
             status = .failed(error.localizedDescription)
         }
         updateDiagnostics()
+
+        // A just-connected USB device can take a moment to offer all its
+        // channels. If more are available than we got, rebuild again (a few times).
+        let session = AVAudioSession.sharedInstance()
+        if session.maximumInputNumberOfChannels > channelCount, settleRetries < 3 {
+            settleRetries += 1
+            scheduleRestart(after: 0.5)
+        } else {
+            settleRetries = 0
+        }
     }
 
     // MARK: - User choices
@@ -216,12 +237,22 @@ final class AudioInputManager: ObservableObject {
             try session.setPreferredInput(usb)
         }
 
-        // iPadOS only opens 2 input channels unless asked for more. Ask for all of
-        // them so every channel pair a mixer sends over USB can be selected.
+        // iPadOS opens only 1-2 input channels unless asked for more. Ask for all
+        // of them so every channel pair a mixer sends over USB can be selected.
+        // (This only works once the device is the active route; if the switch is
+        // still in progress, the route-change handler / settle retry asks again.)
         let maxChannels = session.maximumInputNumberOfChannels
         if maxChannels > session.inputNumberOfChannels {
-            try? session.setPreferredInputNumberOfChannels(maxChannels)
+            do {
+                try session.setPreferredInputNumberOfChannels(maxChannels)
+            } catch {
+                log("Couldn't open \(maxChannels) input channels: \(error.localizedDescription)")
+            }
         }
+    }
+
+    private func log(_ s: String) {
+        NSLog("[KDM audio] %@", s)
     }
 
     private func refreshInputs() {
@@ -255,6 +286,7 @@ final class AudioInputManager: ObservableObject {
                             session.maximumInputNumberOfChannels,
                             session.sampleRate))
         lines.append("Category: \(session.category.rawValue) · mode: \(session.mode.rawValue)")
+        lines.append("App is using: \(channelCount) ch @ \(Int(sampleRate)) Hz")
         diagnostics = lines
     }
 
@@ -264,6 +296,9 @@ final class AudioInputManager: ObservableObject {
 
         channelCount = Int(format.channelCount)
         sampleRate = format.sampleRate
+        engineInputUID = AVAudioSession.sharedInstance().currentRoute.inputs.first?.uid
+        engineChannelCount = channelCount
+        log("Engine input: \(channelCount) ch @ \(Int(sampleRate)) Hz from \(currentInput?.name ?? "?")")
 
         guard channelCount > 0, sampleRate > 0 else {
             status = .noInput
@@ -389,16 +424,22 @@ final class AudioInputManager: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.refreshInputs()
-                if reason == .newDeviceAvailable || reason == .oldDeviceUnavailable {
+                let session = AVAudioSession.sharedInstance()
+                let routeUID = session.currentRoute.inputs.first?.uid
+                // Rebuild when a device comes or goes or the active input changes.
+                if reason == .newDeviceAvailable || reason == .oldDeviceUnavailable
+                    || routeUID != self.engineInputUID {
+                    self.settleRetries = 0
                     self.scheduleRestart()
+                } else if (session.inputNumberOfChannels != self.engineChannelCount
+                           || session.maximumInputNumberOfChannels > self.engineChannelCount),
+                          self.settleRetries < 3 {
+                    // Channel count still settling. Bounded, because asking for
+                    // more channels itself causes a route change.
+                    self.settleRetries += 1
+                    self.scheduleRestart(after: 0.5)
                 }
             }
-        })
-
-        // The hardware format changed under the engine (it stops itself).
-        observers.append(center.addObserver(forName: .AVAudioEngineConfigurationChange,
-                                            object: engine, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.scheduleRestart() }
         })
 
         // Phone call, Siri, another app took the audio: resume afterwards.
@@ -417,14 +458,25 @@ final class AudioInputManager: ObservableObject {
         })
     }
 
+    /// The hardware format changed under the engine (it stops itself): rebuild.
+    private func observeEngineConfiguration() {
+        if let old = engineConfigObserver {
+            NotificationCenter.default.removeObserver(old)
+        }
+        engineConfigObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.scheduleRestart() }
+        }
+    }
+
     /// Route changes arrive in bursts; rebuild once they settle.
-    private func scheduleRestart() {
+    private func scheduleRestart(after delay: TimeInterval = 0.3) {
         pendingRestart?.cancel()
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated { self?.restart() }
         }
         pendingRestart = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     private static func kindLabel(_ type: AVAudioSession.Port) -> String {
