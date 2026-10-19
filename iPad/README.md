@@ -15,7 +15,7 @@ tempo. It uses the same C++ analysis code as the desktop Key Detector plug-in.
    the microphone permission; it is also what allows USB audio.
 
 If Xcode says the bundle identifier is taken, change
-`com.jamesandthecat.kdm` in the target's *General* tab to something unique.
+`com.fuzzyaudiollc.kdm` in the target's *General* tab to something unique.
 
 ## Testing with a mixer
 

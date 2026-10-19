@@ -46,7 +46,7 @@ jobs:
           xcrun simctl bootstatus "$U" -b
           xcrun simctl ui "$U" appearance dark
           xcrun simctl install "$U" build/Build/Products/Debug-iphonesimulator/KDM.app
-          xcrun simctl privacy "$U" grant microphone com.jamesandthecat.kdm
+          xcrun simctl privacy "$U" grant microphone com.fuzzyaudiollc.kdm
 
       - name: Screenshots (landscape and portrait)
         run: |
@@ -54,9 +54,9 @@ jobs:
           mkdir -p shots
           shoot() {  # $1 = name, $2.. = launch args
             name=$1; shift
-            xcrun simctl terminate "$U" com.jamesandthecat.kdm 2>/dev/null || true
+            xcrun simctl terminate "$U" com.fuzzyaudiollc.kdm 2>/dev/null || true
             sleep 2
-            xcrun simctl launch "$U" com.jamesandthecat.kdm "$@"
+            xcrun simctl launch "$U" com.fuzzyaudiollc.kdm "$@"
             sleep 6
             xcrun simctl io "$U" screenshot "shots/$name.png"
           }
