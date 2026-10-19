@@ -8,6 +8,7 @@ struct InputsPanel: View {
     var onDone: () -> Void
 
     @State private var showDiagnostics = false
+    @State private var showSingleChannels = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,23 +61,28 @@ struct InputsPanel: View {
                     .disabled(audio.inputs.isEmpty)
                 }
 
-                LabeledRow("Main output") {
-                    Menu {
-                        ForEach(audio.channelOptions, id: \.self) { option in
-                            Button {
-                                audio.selectChannels(option)
-                            } label: {
-                                if option == audio.channelSelection {
-                                    Label(channelLabel(option), systemImage: "checkmark")
-                                } else {
-                                    Text(channelLabel(option))
-                                }
-                            }
+                // Main output: tap a channel pair. A grid instead of a menu, so a
+                // 10-channel mixer's options all fit without scrolling.
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Main output").foregroundStyle(.secondary)
+                    if audio.channelCount == 0 {
+                        Text("—").foregroundStyle(.secondary)
+                    } else {
+                        channelGrid(audio.channelOptions.filter { $0.rightIndex != nil })
+                        if audio.channelCount >= 2 {
+                            Toggle("Show single channels", isOn: $showSingleChannels)
+                                .font(.callout)
+                                .fixedSize()
                         }
-                    } label: {
-                        MenuLabel(text: audio.channelCount > 0 ? channelLabel(audio.channelSelection) : "—")
+                        if showSingleChannels || audio.channelOptions.allSatisfy({ $0.rightIndex == nil }) {
+                            channelGrid(audio.channelOptions.filter { $0.rightIndex == nil })
+                        }
+                        if !audio.channelNames.isEmpty {
+                            Text(channelLabel(audio.channelSelection))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    .disabled(audio.channelCount == 0)
                 }
 
                 Text(deviceSummary)
@@ -103,6 +109,33 @@ struct InputsPanel: View {
                 }
             }
         }
+    }
+
+    /// Tappable buttons, one per option ("1 + 2", "3 + 4" … or "1", "2" …).
+    private func channelGrid(_ options: [ChannelSelection]) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 8)], alignment: .leading, spacing: 8) {
+            ForEach(options, id: \.self) { option in
+                let selected = option == audio.channelSelection
+                Button {
+                    audio.selectChannels(option)
+                } label: {
+                    Text(shortChannelLabel(option))
+                        .font(.body.weight(.semibold).monospacedDigit())
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .background(RoundedRectangle(cornerRadius: 8)
+                            .fill(selected ? Color.accentColor : Color.white.opacity(0.08)))
+                        .foregroundStyle(selected ? Color.white : Color.primary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(option.label)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+    }
+
+    private func shortChannelLabel(_ option: ChannelSelection) -> String {
+        if let r = option.rightIndex { return "\(option.leftIndex + 1) + \(r + 1)" }
+        return "\(option.leftIndex + 1)"
     }
 
     private var deviceSummary: String {
