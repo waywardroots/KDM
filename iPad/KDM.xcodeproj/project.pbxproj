@@ -335,8 +335,8 @@
 				42840BF13A9FC8AC92FCD1FE,
 				6A0CEDC7B1FF5F9E73C1F118,
 			);
-			name = "StageLinQ (../StageLinQ)";
-			path = ../StageLinQ/Sources/StageLinQ;
+			name = StageLinQ;
+			path = StageLinQ/Sources/StageLinQ;
 			sourceTree = "<group>";
 		};
 		2AC8BA37DAC32D5437812408 = {
