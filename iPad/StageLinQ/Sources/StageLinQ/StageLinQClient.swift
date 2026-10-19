@@ -137,7 +137,13 @@ public final class StageLinQClient: @unchecked Sendable {
                 self?.publishDevices()
             }
             connections[device.token] = conn
-            conn.start()
+            // Introduce ourselves directly first: players close connections from
+            // peers they haven't heard announce. Then connect a moment later.
+            discovery.announce(to: device.address)
+            queue.asyncAfter(deadline: .now() + 1.2) { [weak self, weak conn] in
+                guard let self, let conn, self.connections[device.token] === conn else { return }
+                conn.start()
+            }
             publishDevices()
         case .exit:
             if let conn = connections.removeValue(forKey: device.token) {
