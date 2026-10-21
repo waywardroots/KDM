@@ -253,23 +253,24 @@ struct ContentView: View {
 
                 Spacer()
 
-                HStack(spacing: 8) {
-                    Text("Key").foregroundStyle(.secondary)
-                    Picker("Key stability", selection: $model.stability) {
-                        ForEach(KeyStability.allCases) { s in
-                            Text(s.title).tag(s)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 260)
-                }
-
                 Button("Reset keys") { model.resetKey() }
                     .buttonStyle(.bordered)
             }
-            Text(model.stability.footnote)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            // Key stability on its own row so the labels never get cut off.
+            HStack(spacing: 12) {
+                Text("Key response").foregroundStyle(.secondary)
+                Picker("Key response", selection: $model.stability) {
+                    ForEach(KeyStability.allCases) { s in
+                        Text(s.title).tag(s)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+                Text(model.stability.footnote)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if model.notation == .camelot && !model.showMinorKeys {
                 Text("Major keys only: Camelot codes will all be B. Turn on Detect minor keys to get A codes too.")
                     .font(.footnote)
