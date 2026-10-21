@@ -211,7 +211,11 @@ struct ContentView: View {
             Text("MIXER CHANNELS")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 14)], spacing: 14) {
+            // One equal-width column per channel (up to 4 per row), so the cards
+            // spread across the whole width in portrait and landscape.
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14),
+                                     count: max(1, min(model.channels.count, 4))),
+                      spacing: 14) {
                 ForEach(model.channels) { channel in
                     ChannelCard(channel: channel,
                                 keyText: model.keyText(channel.key),
