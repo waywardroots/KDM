@@ -25,6 +25,7 @@ final class DeviceConnection: @unchecked Sendable {
     private var requestedServices = false
     private var loggedFirstData = false
     private var loggedReference = false
+    private var requestRetries = 0
     private var handshakeTimeout: DispatchWorkItem?
     private var fallbackRequest: DispatchWorkItem?
     private var connectTimeout: DispatchWorkItem?
@@ -112,10 +113,22 @@ final class DeviceConnection: @unchecked Sendable {
                     // (we offer no services of our own).
                     log("device started the handshake")
                     if !requestedServices { requestServices() }
-                case .reference:
+                case let .reference(_, token2, _):
+                    // The second token is who the device thinks it's talking to:
+                    // ours if it recognises us, zeros if it doesn't.
                     if !loggedReference {
                         loggedReference = true
-                        log("device sent a timestamp")
+                        let who = token2 == token ? "us (it recognises KDM)"
+                            : token2 == .zero ? "nobody (it doesn't recognise KDM yet)"
+                            : "another device \(token2)"
+                        log("device sent a timestamp addressed to \(who)")
+                    }
+                    // Still no service list: ask again (the first request may
+                    // have come before the device was ready for it).
+                    if services.isEmpty && requestRetries < 3 {
+                        requestRetries += 1
+                        log("no service list yet; asking again (\(requestRetries))")
+                        requestServices()
                     }
                 }
             }
@@ -128,7 +141,9 @@ final class DeviceConnection: @unchecked Sendable {
     private func requestServices() {
         requestedServices = true
         fallbackRequest?.cancel()
-        main?.send(MainMessage.servicesRequest(token: token).encoded())
+        let bytes = MainMessage.servicesRequest(token: token).encoded()
+        main?.send(bytes)
+        log("sent our services request (\(bytes.count) bytes, token \(token))")
     }
 
     // MARK: - StateMap
