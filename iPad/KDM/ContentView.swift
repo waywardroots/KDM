@@ -375,10 +375,11 @@ struct ChannelCard: View {
             }
 
             // Track from the media player (blank line otherwise, so cards line up).
-            Text(channel.track ?? " ")
+            Text(channel.track ?? (channel.matching ? "Matching player… move this channel's fader" : " "))
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(channel.matching ? Color.orange : Color.secondary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
             // Slim level bar.
             GeometryReader { geo in

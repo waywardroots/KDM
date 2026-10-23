@@ -19,6 +19,8 @@ struct ChannelReadout: Identifiable, Equatable {
     /// Set when the key comes from a media player ("Player 1"), not the audio.
     var player: String? = nil
     var track: String? = nil
+    /// Players are connected but it isn't known yet which one feeds this channel.
+    var matching = false
 }
 
 /// Which media-player deck feeds a mixer channel.
@@ -137,6 +139,7 @@ final class AnalysisViewModel: ObservableObject {
         static let showMinorKeys = "kdm.key.showMinor"
         static let stability = "kdm.key.stability"
         static let playerAssignments = "kdm.players.assignments"
+        static let learnedMatches = "kdm.players.learned"
     }
 
     nonisolated static let noteNames = KeyNotation.noteNames
@@ -149,6 +152,7 @@ final class AnalysisViewModel: ObservableObject {
         playerAssignments = Dictionary(uniqueKeysWithValues: storedAssignments.compactMap { k, v in
             Int(k).map { ($0, PlayerAssignment(storageValue: v)) }
         })
+
         // DJ defaults: Camelot notation, minor keys on (needed for A codes and the
         // relative / parallel moves). A saved choice still wins.
         notation = saved.string(forKey: Keys.notation).flatMap(KeyNotation.init(rawValue:)) ?? .camelot
@@ -156,6 +160,10 @@ final class AnalysisViewModel: ObservableObject {
         stability = saved.string(forKey: Keys.stability).flatMap(KeyStability.init(rawValue:)) ?? .steady
         audio.analysis.majorOnly = !showMinorKeys
         applyStability()
+        // Start from last session's matches so cards are right straight away.
+        for (label, channel) in saved.dictionary(forKey: Keys.learnedMatches) as? [String: Int] ?? [:] {
+            matchScore[label, default: [:]][channel] = 60
+        }
     }
 
     /// Key in the chosen notation ("C major" / "8B"), or "—".
@@ -274,33 +282,58 @@ final class AnalysisViewModel: ObservableObject {
         return audible.max { ($0.fader ?? 0) < ($1.fader ?? 0) }
     }
 
-    /// Learns which deck feeds which channel from what happens together: a deck
-    /// playing with its fader up while a channel has signal (+), the same deck
-    /// up while the channel is silent (−), or the deck stopped while the channel
-    /// plays (−). Works with pre- or post-fader USB sends.
-    private func updateMatches(signal: [Int: Bool], dt: Float) {
+    /// Learns which deck feeds which channel. The X1800's USB channel sends are
+    /// post-fader, so the strongest evidence is a fader move: when a playing
+    /// deck's fader goes up or down, only its own channel's level follows.
+    ///   • fader moved and the channel's level moved the same way   +20
+    ///   • fader moved but the channel's level didn't move           −10
+    ///   • deck playing with its fader shut, yet the channel plays    −1 per tick
+    ///   • deck playing, fader up, channel silent                     −1 per tick
+    ///   • only one deck audible and the channel plays                +0.5 per tick
+    /// Matches are remembered between launches (by player label).
+    private func updateMatches(levels: [Int: Float], now: Date, dt: Float) {
         let decks = players.decks
         guard !decks.isEmpty else {
             if !autoMatches.isEmpty { autoMatches = [:] }
             return
         }
         let step = dt * 30          // ≈ 1 per tick at 30 Hz
+        let audible = decks.filter { $0.playing && ($0.fader ?? 0) > 0.25 }
+
+        // Fader-move evidence, sampled every 0.3 s.
+        let window = now.timeIntervalSince(lastMatchSample) >= 0.3
         for deck in decks {
             var row = matchScore[deck.label] ?? [:]
-            for (channel, hasSignal) in signal {
+            let fader = deck.fader ?? 0
+            let faderDelta = fader - (lastFader[deck.label] ?? fader)
+            for (channel, level) in levels {
                 var score = row[channel] ?? 0
-                let up = deck.playing && (deck.fader ?? 0) > 0.25
-                if up && hasSignal { score += step }
-                else if up && !hasSignal { score -= step }
-                else if !deck.playing && hasSignal { score -= step }
+                let hasSignal = level > -50
+                if window && deck.playing && abs(faderDelta) >= 0.08 {
+                    let levelDelta = level - (lastLevel[channel] ?? level)
+                    if levelDelta * Float(faderDelta) > 0 && abs(levelDelta) >= 2 { score += 20 }
+                    else if abs(levelDelta) < 1 { score -= 10 }
+                    else { score -= 15 }
+                }
+                if deck.playing && fader < 0.03 && hasSignal {
+                    score -= step       // its fader is shut, so this channel's sound is someone else's
+                }
+                if deck.playing && fader > 0.25 && !hasSignal { score -= step }
+                if audible.count == 1 && audible[0].label == deck.label && hasSignal { score += step * 0.5 }
                 row[channel] = min(300, max(-300, score))
             }
             matchScore[deck.label] = row
         }
-        // Best pairs first, each deck and channel used once; needs ~1.5 s of evidence.
+        if window {
+            lastMatchSample = now
+            for deck in decks { lastFader[deck.label] = deck.fader ?? 0 }
+            lastLevel = levels
+        }
+
+        // Best pairs first, each deck and channel used once.
         var pairs: [(label: String, channel: Int, score: Float)] = []
         for (label, row) in matchScore where decks.contains(where: { $0.label == label }) {
-            for (channel, score) in row where score >= 45 { pairs.append((label, channel, score)) }
+            for (channel, score) in row where score >= 40 { pairs.append((label, channel, score)) }
         }
         pairs.sort { $0.score > $1.score }
         var result: [Int: String] = [:]
@@ -309,8 +342,15 @@ final class AnalysisViewModel: ObservableObject {
             result[p.channel] = p.label
             used.insert(p.label)
         }
-        if result != autoMatches { autoMatches = result }
+        if result != autoMatches {
+            autoMatches = result
+            // Remember for next time: label -> channel.
+            defaults.set(Dictionary(uniqueKeysWithValues: result.map { ($0.value, $0.key) }), forKey: Keys.learnedMatches)
+        }
     }
+    private var lastMatchSample = Date.distantPast
+    private var lastFader: [String: Double] = [:]
+    private var lastLevel: [Int: Float] = [:]
 
     /// The player deck feeding a channel, from the manual choice or auto-matching.
     func playerDeck(forChannel id: Int) -> PlayerDeck? {
@@ -326,7 +366,7 @@ final class AnalysisViewModel: ObservableObject {
 
     private func updateChannels(now: Date, dt: Float) {
         if audio.strips.count != appliedStripCount { applyStability() }   // strips were rebuilt
-        var signal: [Int: Bool] = [:]
+        var levels: [Int: Float] = [:]
         var result: [ChannelReadout] = []
         for strip in audio.strips {
             let s = strip.engine.snapshot()
@@ -351,9 +391,12 @@ final class AnalysisViewModel: ObservableObject {
             heldChannel[strip.id] = held
             r.key = held.key
             r.bpm = held.bpm
-            signal[strip.id] = state.db > -50      // level with fall-off, so beats' gaps don't count as silence
+            levels[strip.id] = state.db      // peak with fall-off, so beats' gaps don't count as silence
             // A media player feeds this channel: use its key and tempo (they're
             // there as soon as a track loads, even with the fader down).
+            if !players.decks.isEmpty, playerAssignments[strip.id] ?? .auto == .auto, autoMatches[strip.id] == nil {
+                r.matching = true
+            }
             if let deck = playerDeck(forChannel: strip.id), deck.loaded {
                 r.player = deck.label
                 r.track = deck.trackLine.isEmpty ? nil : deck.trackLine
@@ -363,7 +406,7 @@ final class AnalysisViewModel: ObservableObject {
             result.append(r)
         }
         if result != channels { channels = result }
-        updateMatches(signal: signal, dt: dt)
+        updateMatches(levels: levels, now: now, dt: dt)
     }
 
     /// Key shown only when the chroma matches a key profile well (corr >= 0.6),
