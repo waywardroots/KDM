@@ -54,6 +54,20 @@ final class PlayerLink: ObservableObject {
     @Published private(set) var log: [String] = []
 
     private static let enabledKey = "kdm.players.enabled"
+    private static let tokenKey = "kdm.players.token"
+
+    /// The same StageLinQ identity on every launch. Players keep a session open
+    /// for a while after the app is closed; with a new random token each time,
+    /// a relaunched KDM looked like an unknown second device at the same address
+    /// and the players never sent their service list.
+    private static func savedToken() -> Token {
+        if let bytes = UserDefaults.standard.array(forKey: tokenKey) as? [Int], bytes.count == 16 {
+            return Token(bytes.map { UInt8(truncatingIfNeeded: $0) })
+        }
+        let token = Token.random()
+        UserDefaults.standard.set(token.bytes.map(Int.init), forKey: tokenKey)
+        return token
+    }
     private static let timeFormat: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss.SSS"
@@ -69,7 +83,7 @@ final class PlayerLink: ObservableObject {
 
     func start() {
         guard enabled, client == nil else { return }
-        let c = StageLinQClient(name: "kdm", softwareName: "KDM", softwareVersion: "1.0")
+        let c = StageLinQClient(name: "kdm", softwareName: "KDM", softwareVersion: "1.0", token: Self.savedToken())
         c.onLog = { [weak self] line in
             Task { @MainActor in self?.append(line) }
         }
