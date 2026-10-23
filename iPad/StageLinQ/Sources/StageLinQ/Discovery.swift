@@ -116,13 +116,37 @@ final class Discovery: @unchecked Sendable {
 
     /// Unicast to one device, out of the interface we heard it on. Unbound, an
     /// iPad sends 169.254.x.x traffic out of Wi-Fi and the player never hears it.
-    private func sendDirect(_ bytes: [UInt8], to peer: in_addr_t, interfaceIndex: UInt32) {
-        let label = "\(Self.ip(peer)) (direct" + (Self.interfaceName(interfaceIndex).map { " via \($0)" } ?? "") + ")"
-        guard interfaceIndex > 0 else { return send(bytes, to: peer, from: fd, label: label) }
+    /// A UDP socket that sends out of one interface *with that interface's own
+    /// address as the source*. iPadOS otherwise picks the Wi-Fi address as the
+    /// source even when the packet leaves through the Ethernet adapter, and the
+    /// players then don't recognise us (their timestamps come back addressed to
+    /// nobody and they never send their service list).
+    private static func boundSocket(index: UInt32, address: in_addr_t?) -> Int32 {
         let s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        guard s >= 0 else { return -1 }
+        var on: Int32 = 1
+        setsockopt(s, SOL_SOCKET, SO_BROADCAST, &on, socklen_t(MemoryLayout<Int32>.size))
+        var idx = index
+        setsockopt(s, IPPROTO_IP, IP_BOUND_IF, &idx, socklen_t(MemoryLayout<UInt32>.size))
+        if let address {
+            var local = sockaddr_in()
+            local.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            local.sin_family = sa_family_t(AF_INET)
+            local.sin_port = 0
+            local.sin_addr.s_addr = address
+            _ = withUnsafePointer(to: &local) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(s, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+            }
+        }
+        return s
+    }
+
+    private func sendDirect(_ bytes: [UInt8], to peer: in_addr_t, interfaceIndex: UInt32) {
+        let iface = Self.interfaces().first { $0.index == interfaceIndex }
+        let label = "\(Self.ip(peer)) (direct" + (iface.map { " via \($0.name) from \(Self.ip($0.address))" } ?? "") + ")"
+        guard interfaceIndex > 0 else { return send(bytes, to: peer, from: fd, label: label) }
+        let s = Self.boundSocket(index: interfaceIndex, address: iface?.address)
         guard s >= 0 else { return }
-        var index = interfaceIndex
-        setsockopt(s, IPPROTO_IP, IP_BOUND_IF, &index, socklen_t(MemoryLayout<UInt32>.size))
         send(bytes, to: peer, from: s, label: label)
         close(s)
     }
@@ -155,19 +179,20 @@ final class Discovery: @unchecked Sendable {
         //    that interface. Without the binding, macOS can route 169.254.255.255
         //    (a direct Ethernet link to the mixer) out of the Wi-Fi port and the
         //    send fails with "No route to host" / "Host is down".
-        for iface in Self.interfaces() {
-            let s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        let interfaces = Self.interfaces()
+        for iface in interfaces {
+            let s = Self.boundSocket(index: iface.index, address: iface.address)
             guard s >= 0 else { continue }
-            var on: Int32 = 1
-            setsockopt(s, SOL_SOCKET, SO_BROADCAST, &on, socklen_t(MemoryLayout<Int32>.size))
-            var index = iface.index
-            setsockopt(s, IPPROTO_IP, IP_BOUND_IF, &index, socklen_t(MemoryLayout<UInt32>.size))
-            send(bytes, to: iface.broadcast, from: s, label: "\(iface.name) \(Self.ip(iface.broadcast))")
+            send(bytes, to: iface.broadcast, from: s, label: "\(iface.name) \(Self.ip(iface.broadcast)) from \(Self.ip(iface.address))")
             close(s)
         }
 
-        // 2. The general broadcast address.
-        send(bytes, to: INADDR_BROADCAST, from: fd, label: "255.255.255.255")
+        // 2. The general broadcast address, only when no interface has a broadcast
+        //    address of its own: iPadOS can send it out of the Ethernet adapter
+        //    with the Wi-Fi source address, which confuses the players.
+        if interfaces.isEmpty {
+            send(bytes, to: INADDR_BROADCAST, from: fd, label: "255.255.255.255")
+        }
 
         // 3. Every device we've heard from, directly. Unicast follows the same
         //    route as our TCP connections, so it gets through even when
@@ -295,8 +320,8 @@ final class Discovery: @unchecked Sendable {
     }
 
     /// Every IPv4 interface that's up and can broadcast: name, index, broadcast address.
-    private static func interfaces() -> [(name: String, index: UInt32, broadcast: in_addr_t)] {
-        var result: [(name: String, index: UInt32, broadcast: in_addr_t)] = []
+    private static func interfaces() -> [(name: String, index: UInt32, address: in_addr_t, broadcast: in_addr_t)] {
+        var result: [(name: String, index: UInt32, address: in_addr_t, broadcast: in_addr_t)] = []
         var list: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&list) == 0, let first = list else { return result }
         defer { freeifaddrs(list) }
@@ -308,7 +333,8 @@ final class Discovery: @unchecked Sendable {
                let bcast = ifa.pointee.ifa_dstaddr {
                 let name = String(cString: ifa.pointee.ifa_name)
                 let b = bcast.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr.s_addr }
-                result.append((name, if_nametoindex(ifa.pointee.ifa_name), b))
+                let a = addr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr.s_addr }
+                result.append((name, if_nametoindex(ifa.pointee.ifa_name), a, b))
             }
             cur = ifa.pointee.ifa_next
         }
