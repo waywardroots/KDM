@@ -24,6 +24,9 @@ final class DeviceConnection: @unchecked Sendable {
     private var services: [String: UInt16] = [:]
     private var closed = false
     private var requestedServices = false
+    private var loggedFirstData = false
+    private var loggedReference = false
+    private var handshakeTimeout: DispatchWorkItem?
     private var fallbackRequest: DispatchWorkItem?
 
     init(device: DiscoveredDevice, token: Token, subscriptions: [String], queue: DispatchQueue) {
@@ -44,7 +47,10 @@ final class DeviceConnection: @unchecked Sendable {
             guard let self else { return }
             switch state {
             case .ready:
-                self.log("connected; waiting for the device to start the handshake")
+                var local = "?"
+                if case let .hostPort(host, port)? = conn.currentPath?.localEndpoint { local = "\(host):\(port)" }
+                let iface = conn.currentPath?.availableInterfaces.first?.name ?? "?"
+                self.log("connected from \(local) via \(iface); waiting for the device to start the handshake")
                 // Current Engine firmware speaks first: it sends a services request,
                 // and only then accepts ours. Sending before that (or sending
                 // keep-alives) makes the player reset the connection at once.
@@ -56,6 +62,15 @@ final class DeviceConnection: @unchecked Sendable {
                 }
                 self.fallbackRequest = fallback
                 self.queue.asyncAfter(deadline: .now() + 3, execute: fallback)
+                // A player that doesn't recognise us (it hasn't heard our
+                // announcement from this address yet) stays silent. Don't wait
+                // forever: drop it and let the client reconnect in a few seconds.
+                let timeout = DispatchWorkItem { [weak self] in
+                    guard let self, !self.closed, self.services.isEmpty else { return }
+                    self.close("no reply from the device in 8 s; will retry")
+                }
+                self.handshakeTimeout = timeout
+                self.queue.asyncAfter(deadline: .now() + 8, execute: timeout)
             case .failed(let error):
                 self.close("main connection failed: \(error.localizedDescription)")
             case .waiting(let error):
@@ -83,6 +98,10 @@ final class DeviceConnection: @unchecked Sendable {
         conn.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self, !self.closed else { return }
             if let data, !data.isEmpty {
+                if !self.loggedFirstData {
+                    self.loggedFirstData = true
+                    self.log("device sent its first data (\(data.count) bytes)")
+                }
                 self.mainBuffer += data
                 self.drainMain(conn)
             }
@@ -109,9 +128,13 @@ final class DeviceConnection: @unchecked Sendable {
                 case .servicesRequest:
                     // The device opens the handshake; answer with our request
                     // (we offer no services of our own).
+                    log("device started the handshake")
                     if !requestedServices { requestServices(on: conn) }
                 case .reference:
-                    break
+                    if !loggedReference {
+                        loggedReference = true
+                        log("device sent a timestamp")
+                    }
                 }
             }
         } catch {
@@ -216,6 +239,7 @@ final class DeviceConnection: @unchecked Sendable {
         guard !closed else { return }
         closed = true
         fallbackRequest?.cancel()
+        handshakeTimeout?.cancel()
         keepAlive?.cancel()
         keepAlive = nil
         main?.cancel()

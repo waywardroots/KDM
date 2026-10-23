@@ -54,6 +54,11 @@ final class PlayerLink: ObservableObject {
     @Published private(set) var log: [String] = []
 
     private static let enabledKey = "kdm.players.enabled"
+    private static let timeFormat: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss.SSS"
+        return f
+    }()
     private var client: StageLinQClient?
     private var deviceCount = 0
     private var permissionBlocked = false
@@ -132,7 +137,7 @@ final class PlayerLink: ObservableObject {
             permissionBlocked = true
             updateStatus()
         }
-        log.append(line)
-        if log.count > 40 { log.removeFirst(log.count - 40) }
+        log.append("\(Self.timeFormat.string(from: Date()))  \(line)")
+        if log.count > 200 { log.removeFirst(log.count - 200) }
     }
 }

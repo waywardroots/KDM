@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The "Inputs" panel, opened from the button at the top right of the main
 /// screen: input source and channel pickers, plus audio diagnostics.
@@ -10,6 +11,7 @@ struct InputsPanel: View {
 
     @State private var showDiagnostics = false
     @State private var showPlayerLog = false
+    @State private var copiedLog = false
     @State private var showSingleChannels = false
 
     var body: some View {
@@ -224,6 +226,15 @@ struct InputsPanel: View {
 
                     DisclosureGroup("Connection log", isExpanded: $showPlayerLog) {
                         VStack(alignment: .leading, spacing: 3) {
+                            Button {
+                                UIPasteboard.general.string = players.log.joined(separator: "\n")
+                                copiedLog = true
+                            } label: {
+                                Label(copiedLog ? "Copied" : "Copy log", systemImage: copiedLog ? "checkmark" : "doc.on.doc")
+                            }
+                            .buttonStyle(.bordered)
+                            .font(.callout)
+                            .padding(.bottom, 4)
                             ForEach(Array(players.log.enumerated()), id: \.offset) { _, line in
                                 Text(line)
                                     .font(.system(.caption2, design: .monospaced))
