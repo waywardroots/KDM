@@ -15,6 +15,10 @@
 			isa = PBXBuildFile;
 			fileRef = 7A77E39754CEA631112DB6F9;
 		};
+		0D3D5C027C6D9FF9B554E99B = {
+			isa = PBXBuildFile;
+			fileRef = 8089BBFC781F7AA999284291;
+		};
 		10F038F534F9CCC613720B77 = {
 			isa = PBXBuildFile;
 			fileRef = 5AA7815E7B54DA8491E36B2A;
@@ -210,6 +214,12 @@
 			path = KeyNotation.swift;
 			sourceTree = "<group>";
 		};
+		8089BBFC781F7AA999284291 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = TCPSocket.swift;
+			sourceTree = "<group>";
+		};
 		97F79A53C3F3233656B8DF90 = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
@@ -340,6 +350,7 @@
 				BFE9EB4D1511E2B2B3C3FF9C,
 				C3C2558C697D43C449D079EA,
 				42840BF13A9FC8AC92FCD1FE,
+				8089BBFC781F7AA999284291,
 				6A0CEDC7B1FF5F9E73C1F118,
 			);
 			name = StageLinQ;
@@ -486,6 +497,7 @@
 				C6AB9BFD38CC268EB4574EE6,
 				1E9267491498D2CC4C8101D8,
 				171A69DFC92695CA0EDC0077,
+				0D3D5C027C6D9FF9B554E99B,
 				68C1D88C0672865294F1FE48,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

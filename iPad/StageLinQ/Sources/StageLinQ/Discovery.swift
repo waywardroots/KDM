@@ -13,6 +13,7 @@ public struct DiscoveredDevice: Hashable, CustomStringConvertible {
     /// The network interface its announcement arrived on ("en3"), so we connect
     /// back the same way (an iPad can have two link-local interfaces at once).
     public var interfaceName: String? = nil
+    public var interfaceIndex: UInt32? = nil
 
     public var description: String {
         "\(softwareName) \"\(name)\" \(address):\(port) v\(softwareVersion)" + (interfaceName.map { " on \($0)" } ?? "")
@@ -237,6 +238,7 @@ final class Discovery: @unchecked Sendable {
                                       softwareVersion: msg.softwareVersion)
         var located = device
         if ifIndex > 0 {
+            located.interfaceIndex = ifIndex
             var name = [CChar](repeating: 0, count: Int(IF_NAMESIZE) + 1)
             if if_indextoname(ifIndex, &name) != nil { located.interfaceName = String(cString: name) }
         }

@@ -1,6 +1,5 @@
 #if canImport(Network) && canImport(Darwin)
 import Foundation
-import Network
 
 /// What one deck on one device reports.
 public struct DeckStatus: Equatable {
@@ -60,9 +59,6 @@ public final class StageLinQClient: @unchecked Sendable {
 
     public let token: Token
     private let queue = DispatchQueue(label: "stagelinq.client")
-    /// Current network interfaces, to connect out of the one a device announced on.
-    private let pathMonitor = NWPathMonitor()
-    private var interfaces: [NWInterface] = []
     private let discovery: Discovery
     private var connections: [Token: DeviceConnection] = [:]
     private var retryAfter: [Token: Date] = [:]
@@ -87,16 +83,11 @@ public final class StageLinQClient: @unchecked Sendable {
         discovery.onDevice = { [weak self] device, action in
             self?.queue.async { self?.handleDiscovery(device, action) }
         }
-        pathMonitor.pathUpdateHandler = { [weak self] path in
-            self?.interfaces = path.availableInterfaces
-        }
-        pathMonitor.start(queue: queue)
         try discovery.start()
         log("Listening for StageLinQ devices on UDP \(Discovery.port)")
     }
 
     public func stop() {
-        pathMonitor.cancel()
         discovery.stop()
         queue.sync {
             connections.values.forEach { $0.cancel() }
@@ -150,9 +141,6 @@ public final class StageLinQClient: @unchecked Sendable {
             if let until = retryAfter[device.token], Date() < until { return }
             log("Found \(device)")
             let conn = DeviceConnection(device: device, token: token, subscriptions: Self.subscriptions(), queue: queue)
-            if let name = device.interfaceName {
-                conn.interface = interfaces.first { $0.name == name }
-            }
             conn.onLog = { [weak self] in self?.log($0) }
             conn.onState = { [weak self] dev, path, value in self?.handleState(dev, path, value) }
             conn.onClosed = { [weak self] dev, _ in

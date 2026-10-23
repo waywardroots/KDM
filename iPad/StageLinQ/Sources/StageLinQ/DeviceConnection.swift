@@ -1,8 +1,7 @@
-#if canImport(Network)
+#if canImport(Darwin)
 import Foundation
-import Network
 
-/// One device: its main TCP connection (service list + keep-alive) and, once the
+/// One device: its main TCP connection (service list) and, once the
 /// device announces it, a StateMap connection that streams the states we
 /// subscribe to.
 final class DeviceConnection: @unchecked Sendable {
@@ -16,11 +15,11 @@ final class DeviceConnection: @unchecked Sendable {
     private let subscriptions: [String]
     private let queue: DispatchQueue
 
-    private var main: NWConnection?
+    private var main: TCPSocket?
+    private var mainConnected = false
     private var mainBuffer: [UInt8] = []
-    private var stateMap: NWConnection?
+    private var stateMap: TCPSocket?
     private var stateBuffer: [UInt8] = []
-    private var keepAlive: DispatchSourceTimer?
     private var services: [String: UInt16] = [:]
     private var closed = false
     private var requestedServices = false
@@ -29,8 +28,6 @@ final class DeviceConnection: @unchecked Sendable {
     private var handshakeTimeout: DispatchWorkItem?
     private var fallbackRequest: DispatchWorkItem?
     private var connectTimeout: DispatchWorkItem?
-    /// The interface the device announced itself on (nil = let the system choose).
-    var interface: NWInterface?
 
     init(device: DiscoveredDevice, token: Token, subscriptions: [String], queue: DispatchQueue) {
         self.device = device
@@ -40,33 +37,26 @@ final class DeviceConnection: @unchecked Sendable {
     }
 
     func start() {
-        guard let port = NWEndpoint.Port(rawValue: device.port) else {
-            close("invalid port \(device.port)")
-            return
-        }
-        let params = NWParameters.tcp
-        if let interface { params.requiredInterface = interface }
-        let conn = NWConnection(host: NWEndpoint.Host(device.address), port: port, using: params)
-        main = conn
-        log("connecting" + (interface.map { " via \($0.name)" } ?? ""))
-        // Don't sit in the system's 75 s TCP timeout (e.g. on an interface that
-        // just went away): give up after 6 s and let the client retry.
+        let index = device.interfaceIndex
+        log("connecting" + (device.interfaceName.map { " via \($0)" } ?? ""))
+        let sock = TCPSocket(queue: queue)
+        main = sock
+        // Don't sit in the system's 75 s TCP timeout (e.g. while the Ethernet
+        // adapter has no address yet): give up after 6 s and let the client retry.
         let timeout = DispatchWorkItem { [weak self] in
-            guard let self, !self.closed else { return }
-            if case .ready = conn.state { return }
+            guard let self, !self.closed, !self.mainConnected else { return }
             self.close("couldn't connect within 6 s; will retry")
         }
         connectTimeout = timeout
         queue.asyncAfter(deadline: .now() + 6, execute: timeout)
-        conn.stateUpdateHandler = { [weak self] state in
-            guard let self else { return }
-            switch state {
-            case .ready:
+
+        sock.onEvent = { [weak self] event in
+            guard let self, !self.closed else { return }
+            switch event {
+            case .connected(let local):
+                self.mainConnected = true
                 self.connectTimeout?.cancel()
-                var local = "?"
-                if case let .hostPort(host, port)? = conn.currentPath?.localEndpoint { local = "\(host):\(port)" }
-                let iface = conn.currentPath?.availableInterfaces.first?.name ?? "?"
-                self.log("connected from \(local) via \(iface); waiting for the device to start the handshake")
+                self.log("connected from \(local); waiting for the device to start the handshake")
                 // Current Engine firmware speaks first: it sends a services request,
                 // and only then accepts ours. Sending before that (or sending
                 // keep-alives) makes the player reset the connection at once.
@@ -74,34 +64,31 @@ final class DeviceConnection: @unchecked Sendable {
                 let fallback = DispatchWorkItem { [weak self] in
                     guard let self, !self.closed, !self.requestedServices else { return }
                     self.log("device didn't start the handshake; asking for its services")
-                    self.requestServices(on: conn)
+                    self.requestServices()
                 }
                 self.fallbackRequest = fallback
                 self.queue.asyncAfter(deadline: .now() + 3, execute: fallback)
                 // A player that doesn't recognise us (it hasn't heard our
                 // announcement from this address yet) stays silent. Don't wait
                 // forever: drop it and let the client reconnect in a few seconds.
-                let timeout = DispatchWorkItem { [weak self] in
+                let handshake = DispatchWorkItem { [weak self] in
                     guard let self, !self.closed, self.services.isEmpty else { return }
                     self.close("no reply from the device in 8 s; will retry")
                 }
-                self.handshakeTimeout = timeout
-                self.queue.asyncAfter(deadline: .now() + 8, execute: timeout)
-            case .failed(let error):
-                self.close("main connection failed: \(error.localizedDescription)")
-            case .waiting(let error):
-                // The network isn't ready (e.g. the Ethernet adapter has no
-                // address yet). Give up now; the client retries in a few seconds
-                // instead of this connection waiting forever.
-                self.close("network not ready: \(error.localizedDescription)")
-            case .cancelled:
-                self.close("main connection closed")
-            default:
-                break
+                self.handshakeTimeout = handshake
+                self.queue.asyncAfter(deadline: .now() + 8, execute: handshake)
+            case .data(let bytes):
+                if !self.loggedFirstData {
+                    self.loggedFirstData = true
+                    self.log("device sent its first data (\(bytes.count) bytes)")
+                }
+                self.mainBuffer += bytes
+                self.drainMain()
+            case .closed(let reason):
+                self.close("main connection: \(reason)")
             }
         }
-        receiveMain(conn)
-        conn.start(queue: queue)
+        sock.connect(address: device.address, port: device.port, interfaceIndex: index)
     }
 
     func cancel() {
@@ -110,28 +97,7 @@ final class DeviceConnection: @unchecked Sendable {
 
     // MARK: - Main connection
 
-    private func receiveMain(_ conn: NWConnection) {
-        conn.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
-            guard let self, !self.closed else { return }
-            if let data, !data.isEmpty {
-                if !self.loggedFirstData {
-                    self.loggedFirstData = true
-                    self.log("device sent its first data (\(data.count) bytes)")
-                }
-                self.mainBuffer += data
-                self.drainMain(conn)
-            }
-            if let error {
-                self.close("main connection: \(error.localizedDescription)")
-            } else if isComplete {
-                self.close("device closed the connection")
-            } else {
-                self.receiveMain(conn)
-            }
-        }
-    }
-
-    private func drainMain(_ conn: NWConnection) {
+    private func drainMain() {
         do {
             while let msg = try MainMessage.decode(from: &mainBuffer) {
                 switch msg {
@@ -145,7 +111,7 @@ final class DeviceConnection: @unchecked Sendable {
                     // The device opens the handshake; answer with our request
                     // (we offer no services of our own).
                     log("device started the handshake")
-                    if !requestedServices { requestServices(on: conn) }
+                    if !requestedServices { requestServices() }
                 case .reference:
                     if !loggedReference {
                         loggedReference = true
@@ -159,71 +125,35 @@ final class DeviceConnection: @unchecked Sendable {
         }
     }
 
-    private func requestServices(on conn: NWConnection) {
+    private func requestServices() {
         requestedServices = true
         fallbackRequest?.cancel()
-        send(MainMessage.servicesRequest(token: token).encoded(), on: conn)
-    }
-
-    /// Not used: current firmware resets connections that send these unprompted.
-    private func startKeepAlive(on conn: NWConnection) {
-        let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + 0.25, repeating: 0.25)
-        timer.setEventHandler { [weak self] in
-            guard let self else { return }
-            self.send(MainMessage.reference(token: self.token, token2: self.device.token, reference: 0).encoded(), on: conn)
-        }
-        timer.resume()
-        keepAlive = timer
+        main?.send(MainMessage.servicesRequest(token: token).encoded())
     }
 
     // MARK: - StateMap
 
     private func openStateMap(port: UInt16) {
-        guard let p = NWEndpoint.Port(rawValue: port) else { return }
-        let params = NWParameters.tcp
-        if let interface { params.requiredInterface = interface }
-        let conn = NWConnection(host: NWEndpoint.Host(device.address), port: p, using: params)
-        stateMap = conn
-        conn.stateUpdateHandler = { [weak self] state in
-            guard let self else { return }
-            switch state {
-            case .ready:
-                var localPort: UInt16 = 0
-                if case let .hostPort(_, lp)? = conn.currentPath?.localEndpoint { localPort = lp.rawValue }
-                var hello = StateMapMessage.hello(token: self.token, localPort: localPort)
+        let sock = TCPSocket(queue: queue)
+        stateMap = sock
+        sock.onEvent = { [weak self] event in
+            guard let self, !self.closed else { return }
+            switch event {
+            case .connected:
+                var hello = StateMapMessage.hello(token: self.token, localPort: sock.localPort)
                 for path in self.subscriptions {
                     hello += StateMapMessage.subscribe(name: path, interval: 0).encoded()
                 }
-                self.send(hello, on: conn)
+                sock.send(hello)
                 self.log("StateMap: subscribed to \(self.subscriptions.count) states")
-            case .failed(let error):
-                self.close("StateMap failed: \(error.localizedDescription)")
-            case .waiting(let error):
-                self.close("StateMap: network not ready: \(error.localizedDescription)")
-            default:
-                break
-            }
-        }
-        receiveStateMap(conn)
-        conn.start(queue: queue)
-    }
-
-    private func receiveStateMap(_ conn: NWConnection) {
-        conn.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
-            guard let self, !self.closed else { return }
-            if let data, !data.isEmpty {
-                self.stateBuffer += data
+            case .data(let bytes):
+                self.stateBuffer += bytes
                 self.drainStateMap()
-            }
-            if let error {
-                self.close("StateMap: \(error.localizedDescription)")
-            } else if isComplete {
-                self.close("device closed StateMap")
-            } else {
-                self.receiveStateMap(conn)
+            case .closed(let reason):
+                self.close("StateMap: \(reason)")
             }
         }
+        sock.connect(address: device.address, port: port, interfaceIndex: device.interfaceIndex)
     }
 
     private func drainStateMap() {
@@ -247,22 +177,14 @@ final class DeviceConnection: @unchecked Sendable {
 
     // MARK: -
 
-    private func send(_ bytes: [UInt8], on conn: NWConnection) {
-        conn.send(content: Data(bytes), completion: .contentProcessed { [weak self] error in
-            if let error { self?.log("send failed: \(error.localizedDescription)") }
-        })
-    }
-
     private func close(_ reason: String) {
         guard !closed else { return }
         closed = true
         fallbackRequest?.cancel()
         handshakeTimeout?.cancel()
         connectTimeout?.cancel()
-        keepAlive?.cancel()
-        keepAlive = nil
-        main?.cancel()
-        stateMap?.cancel()
+        main?.close()
+        stateMap?.close()
         log("disconnected: \(reason)")
         onClosed?(device, reason)
     }
