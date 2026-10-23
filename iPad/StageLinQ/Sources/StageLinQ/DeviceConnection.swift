@@ -59,7 +59,10 @@ final class DeviceConnection: @unchecked Sendable {
             case .failed(let error):
                 self.close("main connection failed: \(error.localizedDescription)")
             case .waiting(let error):
-                self.log("waiting: \(error.localizedDescription)")
+                // The network isn't ready (e.g. the Ethernet adapter has no
+                // address yet). Give up now; the client retries in a few seconds
+                // instead of this connection waiting forever.
+                self.close("network not ready: \(error.localizedDescription)")
             case .cancelled:
                 self.close("main connection closed")
             default:
@@ -155,6 +158,8 @@ final class DeviceConnection: @unchecked Sendable {
                 self.log("StateMap: subscribed to \(self.subscriptions.count) states")
             case .failed(let error):
                 self.close("StateMap failed: \(error.localizedDescription)")
+            case .waiting(let error):
+                self.close("StateMap: network not ready: \(error.localizedDescription)")
             default:
                 break
             }
