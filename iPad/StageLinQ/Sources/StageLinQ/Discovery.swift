@@ -42,6 +42,7 @@ final class Discovery: @unchecked Sendable {
     private var readSource: DispatchSourceRead?
     private var reportedSendErrors: Set<String> = []
     private var announcedTo: Set<String> = []
+    private var lastAddressSummary = ""
     /// Devices we've heard from: address -> the interface it arrived on (0 = unknown).
     private var knownPeers: [in_addr_t: UInt32] = [:]
 
@@ -142,6 +143,14 @@ final class Discovery: @unchecked Sendable {
         guard fd >= 0 else { return }
         let bytes = message(action)
 
+        // Log the IPv4 interfaces whenever they change (e.g. a USB Ethernet
+        // adapter getting its link-local address), to make the log readable.
+        let summary = Self.addressSummary()
+        if summary != lastAddressSummary {
+            lastAddressSummary = summary
+            onLog?("Network: " + (summary.isEmpty ? "no IPv4 interfaces" : summary))
+        }
+
         // 1. Each interface's own broadcast address, sent from a socket bound to
         //    that interface. Without the binding, macOS can route 169.254.255.255
         //    (a direct Ethernet link to the mixer) out of the Wi-Fi port and the
@@ -199,6 +208,25 @@ final class Discovery: @unchecked Sendable {
         #else
         return err == EPERM
         #endif
+    }
+
+    /// "en0 10.0.0.36, en3 169.254.60.131" — every IPv4 interface that's up.
+    private static func addressSummary() -> String {
+        var parts: [String] = []
+        var list: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&list) == 0, let first = list else { return "" }
+        defer { freeifaddrs(list) }
+        var cur: UnsafeMutablePointer<ifaddrs>? = first
+        while let ifa = cur {
+            let flags = Int32(ifa.pointee.ifa_flags)
+            if flags & IFF_UP != 0, flags & IFF_LOOPBACK == 0,
+               let addr = ifa.pointee.ifa_addr, addr.pointee.sa_family == sa_family_t(AF_INET) {
+                let a = addr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr.s_addr }
+                parts.append("\(String(cString: ifa.pointee.ifa_name)) \(ip(a))")
+            }
+            cur = ifa.pointee.ifa_next
+        }
+        return parts.sorted().joined(separator: ", ")
     }
 
     /// Control-message alignment on Darwin (4 bytes).
