@@ -138,6 +138,7 @@ final class PlayerLink: ObservableObject {
             updateStatus()
         }
         log.append("\(Self.timeFormat.string(from: Date()))  \(line)")
+        print("[KDM players] \(line)")      // also in Xcode's console when run from Xcode
         if log.count > 200 { log.removeFirst(log.count - 200) }
     }
 }

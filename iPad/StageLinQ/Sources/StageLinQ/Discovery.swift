@@ -10,8 +10,13 @@ public struct DiscoveredDevice: Hashable, CustomStringConvertible {
     public let name: String             // e.g. "sc6000"
     public let softwareName: String     // e.g. "SC6000", "JM08" (mixer)
     public let softwareVersion: String
+    /// The network interface its announcement arrived on ("en3"), so we connect
+    /// back the same way (an iPad can have two link-local interfaces at once).
+    public var interfaceName: String? = nil
 
-    public var description: String { "\(softwareName) \"\(name)\" \(address):\(port) v\(softwareVersion)" }
+    public var description: String {
+        "\(softwareName) \"\(name)\" \(address):\(port) v\(softwareVersion)" + (interfaceName.map { " on \($0)" } ?? "")
+    }
 }
 
 /// Listens for StageLinQ announcements on UDP 51337 and announces us once a
@@ -52,6 +57,7 @@ final class Discovery: @unchecked Sendable {
         setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &on, socklen_t(MemoryLayout<Int32>.size))
         setsockopt(s, SOL_SOCKET, SO_REUSEPORT, &on, socklen_t(MemoryLayout<Int32>.size))
         setsockopt(s, SOL_SOCKET, SO_BROADCAST, &on, socklen_t(MemoryLayout<Int32>.size))
+        setsockopt(s, IPPROTO_IP, IP_RECVIF, &on, socklen_t(MemoryLayout<Int32>.size))   // report the arrival interface
 
         var addr = sockaddr_in()
         addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
@@ -173,6 +179,9 @@ final class Discovery: @unchecked Sendable {
         #endif
     }
 
+    /// Control-message alignment on Darwin (4 bytes).
+    private static func align(_ n: Int) -> Int { (n + 3) & ~3 }
+
     private static func ip(_ addr: in_addr_t) -> String {
         var a = in_addr(s_addr: addr)
         var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
@@ -182,12 +191,36 @@ final class Discovery: @unchecked Sendable {
 
     private func receive() {
         var buffer = [UInt8](repeating: 0, count: 8192)
+        var control = [UInt8](repeating: 0, count: 256)
         var from = sockaddr_in()
-        var fromLen = socklen_t(MemoryLayout<sockaddr_in>.size)
-        let n = buffer.withUnsafeMutableBytes { buf in
-            withUnsafeMutablePointer(to: &from) {
-                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    recvfrom(fd, buf.baseAddress, buf.count, 0, $0, &fromLen)
+        var ifIndex: UInt32 = 0
+        let n: Int = buffer.withUnsafeMutableBytes { buf in
+            control.withUnsafeMutableBytes { ctl in
+                withUnsafeMutablePointer(to: &from) { fromPtr in
+                    var iov = iovec(iov_base: buf.baseAddress, iov_len: buf.count)
+                    return withUnsafeMutablePointer(to: &iov) { iovPtr in
+                        var msg = msghdr(msg_name: UnsafeMutableRawPointer(fromPtr),
+                                         msg_namelen: socklen_t(MemoryLayout<sockaddr_in>.size),
+                                         msg_iov: iovPtr, msg_iovlen: 1,
+                                         msg_control: ctl.baseAddress, msg_controllen: socklen_t(ctl.count),
+                                         msg_flags: 0)
+                        let got = recvmsg(fd, &msg, 0)
+                        // Walk the control messages for IP_RECVIF (a sockaddr_dl:
+                        // len, family, then the UInt16 interface index).
+                        var offset = 0
+                        let total = Int(msg.msg_controllen)
+                        let header = MemoryLayout<cmsghdr>.size
+                        while got > 0, offset + header <= total {
+                            let h = ctl.loadUnaligned(fromByteOffset: offset, as: cmsghdr.self)
+                            let len = Int(h.cmsg_len)
+                            guard len >= header else { break }
+                            if h.cmsg_level == IPPROTO_IP, h.cmsg_type == IP_RECVIF, offset + header + 4 <= total {
+                                ifIndex = UInt32(ctl.loadUnaligned(fromByteOffset: offset + Self.align(header) + 2, as: UInt16.self))
+                            }
+                            offset += Self.align(len)
+                        }
+                        return got
+                    }
                 }
             }
         }
@@ -202,7 +235,12 @@ final class Discovery: @unchecked Sendable {
         let device = DiscoveredDevice(token: msg.token, address: String(cString: ip), port: msg.port,
                                       name: msg.source, softwareName: msg.softwareName,
                                       softwareVersion: msg.softwareVersion)
-        onDevice?(device, msg.action)
+        var located = device
+        if ifIndex > 0 {
+            var name = [CChar](repeating: 0, count: Int(IF_NAMESIZE) + 1)
+            if if_indextoname(ifIndex, &name) != nil { located.interfaceName = String(cString: name) }
+        }
+        onDevice?(located, msg.action)
     }
 
     /// Every IPv4 interface that's up and can broadcast: name, index, broadcast address.

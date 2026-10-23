@@ -28,6 +28,9 @@ final class DeviceConnection: @unchecked Sendable {
     private var loggedReference = false
     private var handshakeTimeout: DispatchWorkItem?
     private var fallbackRequest: DispatchWorkItem?
+    private var connectTimeout: DispatchWorkItem?
+    /// The interface the device announced itself on (nil = let the system choose).
+    var interface: NWInterface?
 
     init(device: DiscoveredDevice, token: Token, subscriptions: [String], queue: DispatchQueue) {
         self.device = device
@@ -41,12 +44,25 @@ final class DeviceConnection: @unchecked Sendable {
             close("invalid port \(device.port)")
             return
         }
-        let conn = NWConnection(host: NWEndpoint.Host(device.address), port: port, using: .tcp)
+        let params = NWParameters.tcp
+        if let interface { params.requiredInterface = interface }
+        let conn = NWConnection(host: NWEndpoint.Host(device.address), port: port, using: params)
         main = conn
+        log("connecting" + (interface.map { " via \($0.name)" } ?? ""))
+        // Don't sit in the system's 75 s TCP timeout (e.g. on an interface that
+        // just went away): give up after 6 s and let the client retry.
+        let timeout = DispatchWorkItem { [weak self] in
+            guard let self, !self.closed else { return }
+            if case .ready = conn.state { return }
+            self.close("couldn't connect within 6 s; will retry")
+        }
+        connectTimeout = timeout
+        queue.asyncAfter(deadline: .now() + 6, execute: timeout)
         conn.stateUpdateHandler = { [weak self] state in
             guard let self else { return }
             switch state {
             case .ready:
+                self.connectTimeout?.cancel()
                 var local = "?"
                 if case let .hostPort(host, port)? = conn.currentPath?.localEndpoint { local = "\(host):\(port)" }
                 let iface = conn.currentPath?.availableInterfaces.first?.name ?? "?"
@@ -165,7 +181,9 @@ final class DeviceConnection: @unchecked Sendable {
 
     private func openStateMap(port: UInt16) {
         guard let p = NWEndpoint.Port(rawValue: port) else { return }
-        let conn = NWConnection(host: NWEndpoint.Host(device.address), port: p, using: .tcp)
+        let params = NWParameters.tcp
+        if let interface { params.requiredInterface = interface }
+        let conn = NWConnection(host: NWEndpoint.Host(device.address), port: p, using: params)
         stateMap = conn
         conn.stateUpdateHandler = { [weak self] state in
             guard let self else { return }
@@ -240,6 +258,7 @@ final class DeviceConnection: @unchecked Sendable {
         closed = true
         fallbackRequest?.cancel()
         handshakeTimeout?.cancel()
+        connectTimeout?.cancel()
         keepAlive?.cancel()
         keepAlive = nil
         main?.cancel()
