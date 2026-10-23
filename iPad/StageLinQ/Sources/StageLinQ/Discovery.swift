@@ -42,7 +42,8 @@ final class Discovery: @unchecked Sendable {
     private var readSource: DispatchSourceRead?
     private var reportedSendErrors: Set<String> = []
     private var announcedTo: Set<String> = []
-    private var knownPeers: Set<in_addr_t> = []
+    /// Devices we've heard from: address -> the interface it arrived on (0 = unknown).
+    private var knownPeers: [in_addr_t: UInt32] = [:]
 
     init(token: Token, name: String, softwareName: String, softwareVersion: String) {
         self.token = token
@@ -101,14 +102,34 @@ final class Discovery: @unchecked Sendable {
 
     /// Announce straight to one device (unicast). Called as soon as a new device
     /// is seen, so it knows us before we open a connection to it.
-    func announce(to address: String) {
+    func announce(to address: String, interfaceIndex: UInt32? = nil) {
         queue.async { [weak self] in
             guard let self else { return }
             var a = in_addr()
             guard inet_pton(AF_INET, address, &a) == 1 else { return }
-            self.knownPeers.insert(a.s_addr)
-            self.send(self.message(.howdy), to: a.s_addr, from: self.fd, label: "\(address) (direct)")
+            let index = interfaceIndex ?? self.knownPeers[a.s_addr] ?? 0
+            self.knownPeers[a.s_addr] = index
+            self.sendDirect(self.message(.howdy), to: a.s_addr, interfaceIndex: index)
         }
+    }
+
+    /// Unicast to one device, out of the interface we heard it on. Unbound, an
+    /// iPad sends 169.254.x.x traffic out of Wi-Fi and the player never hears it.
+    private func sendDirect(_ bytes: [UInt8], to peer: in_addr_t, interfaceIndex: UInt32) {
+        let label = "\(Self.ip(peer)) (direct" + (Self.interfaceName(interfaceIndex).map { " via \($0)" } ?? "") + ")"
+        guard interfaceIndex > 0 else { return send(bytes, to: peer, from: fd, label: label) }
+        let s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        guard s >= 0 else { return }
+        var index = interfaceIndex
+        setsockopt(s, IPPROTO_IP, IP_BOUND_IF, &index, socklen_t(MemoryLayout<UInt32>.size))
+        send(bytes, to: peer, from: s, label: label)
+        close(s)
+    }
+
+    private static func interfaceName(_ index: UInt32) -> String? {
+        guard index > 0 else { return nil }
+        var name = [CChar](repeating: 0, count: Int(IF_NAMESIZE) + 1)
+        return if_indextoname(index, &name) != nil ? String(cString: name) : nil
     }
 
     private func message(_ action: DiscoveryMessage.Action) -> [UInt8] {
@@ -142,8 +163,8 @@ final class Discovery: @unchecked Sendable {
         // 3. Every device we've heard from, directly. Unicast follows the same
         //    route as our TCP connections, so it gets through even when
         //    broadcasts don't.
-        for peer in knownPeers {
-            send(bytes, to: peer, from: fd, label: "\(Self.ip(peer)) (direct)")
+        for (peer, index) in knownPeers {
+            sendDirect(bytes, to: peer, interfaceIndex: index)
         }
     }
 
@@ -228,7 +249,7 @@ final class Discovery: @unchecked Sendable {
         guard n > 0 else { return }
         guard let msg = try? DiscoveryMessage.decode(Array(buffer[0..<n])) else { return }
         if msg.token == token { return }   // our own announcement
-        knownPeers.insert(from.sin_addr.s_addr)
+        knownPeers[from.sin_addr.s_addr] = ifIndex
 
         var ip = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
         var a = from.sin_addr
