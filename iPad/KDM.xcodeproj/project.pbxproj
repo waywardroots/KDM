@@ -162,6 +162,12 @@
 			path = DeviceConnection.swift;
 			sourceTree = "<group>";
 		};
+		48C774A2059184B477C8B2CC = {
+			isa = PBXFileReference;
+			lastKnownFileType = text.plist.entitlements;
+			path = KDM.entitlements;
+			sourceTree = "<group>";
+		};
 		4CE09A205F7C328896B79953 = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.c.h;
@@ -321,6 +327,7 @@
 				D23F0C31340F5036A12B8329,
 				2349641B48A6FFC0ABD201D8,
 				29902DF19882080A6FF75616,
+				48C774A2059184B477C8B2CC,
 			);
 			path = KDM;
 			sourceTree = "<group>";
@@ -490,6 +497,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = KDM/KDM.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
@@ -584,6 +592,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = KDM/KDM.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";

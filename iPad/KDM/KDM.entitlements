@@ -2,11 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Lets KDM find Denon / Engine DJ media players (StageLinQ uses UDP broadcast).
-	     Apple must approve this for the team first (request form:
-	     developer.apple.com/contact/request/networking-multicast). Until then this
-	     file is NOT referenced by the target, so device builds keep signing. Once
-	     approved: Signing & Capabilities → + Capability → Multicast Networking. -->
+	<!-- Lets KDM find Denon / Engine DJ media players (StageLinQ discovery uses
+	     UDP broadcast). Approved by Apple for the Fuzzy Audio LLC team. -->
 	<key>com.apple.developer.networking.multicast</key>
 	<true/>
 </dict>
