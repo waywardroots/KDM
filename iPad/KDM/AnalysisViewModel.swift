@@ -348,6 +348,17 @@ final class AnalysisViewModel: ObservableObject {
             defaults.set(Dictionary(uniqueKeysWithValues: result.map { ($0.value, $0.key) }), forKey: Keys.learnedMatches)
         }
     }
+    /// Pioneer setups normally put player N on mixer channel N: start each new
+    /// "CDJ N" just above the match threshold on "Ch N", so its card is right
+    /// at once; fader evidence still overrides it if the wiring is different.
+    private func seedPioneerMatches() {
+        for deck in players.decks where deck.label.hasPrefix("CDJ ") && matchScore[deck.label] == nil {
+            guard let n = Int(deck.label.dropFirst(4)),
+                  let strip = audio.strips.first(where: { $0.name == "Ch \(n)" }) else { continue }
+            matchScore[deck.label] = [strip.id: 45]
+        }
+    }
+
     private var lastMatchSample = Date.distantPast
     private var lastFader: [String: Double] = [:]
     private var lastLevel: [Int: Float] = [:]
@@ -406,6 +417,7 @@ final class AnalysisViewModel: ObservableObject {
             result.append(r)
         }
         if result != channels { channels = result }
+        seedPioneerMatches()
         updateMatches(levels: levels, now: now, dt: dt)
     }
 

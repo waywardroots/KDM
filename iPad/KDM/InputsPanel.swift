@@ -184,7 +184,7 @@ struct InputsPanel: View {
                             .font(.footnote)
                             .foregroundStyle(.orange)
                     } else if players.decks.isEmpty {
-                        Text("Connect the iPad to the players' network: plug it into a free Ethernet port on the mixer (a USB-C hub with Ethernet keeps the mixer's USB audio connected too), or join the same Wi-Fi. Denon SC6000 / SC5000 / Prime players with Engine DJ.")
+                        Text("Connect the iPad to the players' network: plug it into a free Ethernet port on the mixer or the players' network switch (a USB-C hub with Ethernet keeps the mixer's USB audio connected too). Works with Denon Engine DJ players (SC6000 / SC5000 / Prime) and Pioneer CDJ-3000s (with a DJM mixer for on-air).")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }

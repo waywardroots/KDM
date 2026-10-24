@@ -23,9 +23,12 @@ struct PlayerDeck: Identifiable, Equatable {
     }
 }
 
-/// Connects to Denon / Engine DJ media players over the network (StageLinQ) and
-/// publishes their decks: the key and tempo each player has analysed for its
-/// track, whether it's playing, and where its fader is.
+/// Connects to DJ media players over the network and publishes their decks: the
+/// key and tempo each player has analysed for its track, whether it's playing,
+/// and whether its channel is up.
+///   • Denon / Engine DJ (SC6000 …) over StageLinQ: labels "Player 1", "Player 1 B"
+///   • Pioneer DJ (CDJ-3000 …) over Pro DJ Link: labels "CDJ 1" …
+///     Key needs a CDJ-3000; "up" comes from the mixer's on-air signal (DJM-A9).
 ///
 /// Works over Wi-Fi or Ethernet (plug the iPad into a free port on the mixer).
 /// On iPad it needs Apple's multicast networking permission
@@ -66,7 +69,14 @@ final class PlayerLink: ObservableObject {
         return f
     }()
     private var client: StageLinQClient?
+    private var pioneer: ProDJLinkClient?
     private var deviceCount = 0
+    private var pioneerCount = 0
+    private var denonDecks: [PlayerDeck] = []
+    private var cdjDecks: [PlayerDeck] = []
+    /// Set once any CDJ reports "on air": the mixer sends on-air, so a CDJ that
+    /// isn't on air has its fader down.
+    private var onAirKnown = false
     private var permissionBlocked = false
 
     init() {
@@ -97,13 +107,65 @@ final class PlayerLink: ObservableObject {
             status = .failed(error.localizedDescription)
             append("Couldn't start: \(error.localizedDescription)")
         }
+        startPioneer()
+    }
+
+    private func startPioneer() {
+        guard pioneer == nil else { return }
+        let p = ProDJLinkClient(name: "KDM")
+        p.onLog = { [weak self] line in
+            Task { @MainActor in self?.append("Pioneer: " + line) }
+        }
+        p.onDevicesChanged = { [weak self] devices in
+            Task { @MainActor in
+                guard let self else { return }
+                self.pioneerCount = devices.filter { $0.kind == .player }.count
+                self.updateStatus()
+            }
+        }
+        p.onStatus = { [weak self] players in
+            Task { @MainActor in self?.updatePioneer(players) }
+        }
+        do {
+            try p.start()
+            pioneer = p
+            if client == nil { status = .searching }
+        } catch {
+            append("Pioneer: couldn't start: \(error.localizedDescription) (is rekordbox running on this device?)")
+        }
+    }
+
+    private func updatePioneer(_ players: [CDJStatus]) {
+        if players.contains(where: { $0.onAir }) { onAirKnown = true }
+        cdjDecks = players.map { p in
+            let key = p.currentKey.map { DetectedKey(pitchClass: $0.pitchClass, isMinor: $0.isMinor) }
+            return PlayerDeck(id: "cdj#\(p.player)", label: "CDJ \(p.player)",
+                              key: key, keyText: p.currentKey?.description,
+                              bpm: p.effectiveBPM.map(Float.init),
+                              title: nil, artist: nil,
+                              loaded: p.loaded, playing: p.playing,
+                              fader: onAirKnown ? (p.onAir ? 1 : 0) : nil,
+                              isMaster: p.isMaster)
+        }
+        publishDecks()
+    }
+
+    private func publishDecks() {
+        let all = (denonDecks + cdjDecks).sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
+        if all != decks { decks = all }
+        updateStatus()
     }
 
     func stop() {
         client?.stop()
         client = nil
+        pioneer?.stop()
+        pioneer = nil
         decks = []
+        denonDecks = []
+        cdjDecks = []
         deviceCount = 0
+        pioneerCount = 0
         status = .off
     }
 
@@ -130,15 +192,14 @@ final class PlayerLink: ObservableObject {
                        title: s.title, artist: s.artist, loaded: s.loaded, playing: s.playing,
                        fader: s.faderPosition, isMaster: s.isMaster)
         }
-        .sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
-        if new != decks { decks = new }
-        updateStatus()
+        denonDecks = new
+        publishDecks()
     }
 
     private func updateStatus() {
-        guard client != nil else { status = .off; return }
-        if deviceCount > 0 {
-            status = .connected(players: deviceCount)
+        guard client != nil || pioneer != nil else { status = .off; return }
+        if deviceCount + pioneerCount > 0 {
+            status = .connected(players: deviceCount + pioneerCount)
         } else {
             status = permissionBlocked ? .needsPermission : .searching
         }
@@ -146,7 +207,7 @@ final class PlayerLink: ObservableObject {
 
     private func append(_ line: String) {
         // A real permission block means we never hear any device at all.
-        if line.hasPrefix("Found ") {
+        if line.hasPrefix("Found ") || line.hasPrefix("Pioneer: Found ") {
             heardDevices = true
             if permissionBlocked { permissionBlocked = false; updateStatus() }
         } else if !heardDevices && line.contains("Operation not permitted") {
