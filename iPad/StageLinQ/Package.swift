@@ -7,6 +7,7 @@ import PackageDescription
 //
 //   swift run stagelinq-monitor     # Mac test tool: what Denon decks report
 //   swift run prodjlink-monitor     # Mac test tool: what Pioneer players report
+//   swift run kdm-bridge            # Mac helper: Serato DJ Pro decks -> KDM
 //   swift test                      # protocol + key parsing tests
 let package = Package(
     name: "StageLinQ",
@@ -16,6 +17,7 @@ let package = Package(
         .executable(name: "stagelinq-monitor", targets: ["stagelinq-monitor"]),
         .library(name: "ProDJLink", targets: ["ProDJLink"]),
         .executable(name: "prodjlink-monitor", targets: ["prodjlink-monitor"]),
+        .executable(name: "kdm-bridge", targets: ["kdm-bridge"]),
     ],
     targets: [
         .target(name: "StageLinQ"),
@@ -24,5 +26,7 @@ let package = Package(
         .target(name: "ProDJLink"),
         .executableTarget(name: "prodjlink-monitor", dependencies: ["ProDJLink"]),
         .testTarget(name: "ProDJLinkTests", dependencies: ["ProDJLink"]),
+        // Mac helper: sends Serato DJ Pro's decks (key, BPM, track) to KDM.
+        .executableTarget(name: "kdm-bridge"),
     ]
 )

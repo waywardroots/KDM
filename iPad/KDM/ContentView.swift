@@ -208,7 +208,7 @@ struct ContentView: View {
 
     private var channelsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("MIXER CHANNELS")
+            Text(model.channels.first.map { $0.id >= 10_000 } == true ? "DECKS" : "MIXER CHANNELS")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             // One equal-width column per channel (up to 4 per row), so the cards

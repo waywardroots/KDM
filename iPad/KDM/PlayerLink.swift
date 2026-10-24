@@ -29,6 +29,8 @@ struct PlayerDeck: Identifiable, Equatable {
 ///   • Denon / Engine DJ (SC6000 …) over StageLinQ: labels "Player 1", "Player 1 B"
 ///   • Pioneer DJ (CDJ-3000 …) over Pro DJ Link: labels "CDJ 1" …
 ///     Key needs a CDJ-3000; "up" comes from the mixer's on-air signal (DJM-A9).
+///   • DJ software on a computer (Serato DJ Pro) through KDM Bridge running on
+///     that computer: labels "Serato 1" …
 ///
 /// Works over Wi-Fi or Ethernet (plug the iPad into a free port on the mixer).
 /// On iPad it needs Apple's multicast networking permission
@@ -74,6 +76,9 @@ final class PlayerLink: ObservableObject {
     private var pioneerCount = 0
     private var denonDecks: [PlayerDeck] = []
     private var cdjDecks: [PlayerDeck] = []
+    private var bridge: BridgeLink?
+    private var bridgeDecks: [PlayerDeck] = []
+    private var bridgeCount = 0
     /// Set once any CDJ reports "on air": the mixer sends on-air, so a CDJ that
     /// isn't on air has its fader down.
     private var onAirKnown = false
@@ -108,6 +113,45 @@ final class PlayerLink: ObservableObject {
             append("Couldn't start: \(error.localizedDescription)")
         }
         startPioneer()
+        startBridge()
+    }
+
+    private func startBridge() {
+        guard bridge == nil else { return }
+        let b = BridgeLink()
+        b.onLog = { [weak self] line in
+            Task { @MainActor in self?.append("Computer: " + line) }
+        }
+        b.onChange = { [weak self] computers in
+            Task { @MainActor in self?.updateBridge(computers) }
+        }
+        b.start()
+        bridge = b
+        if client == nil && pioneer == nil { status = .searching }
+    }
+
+    /// Serato decks: the deck whose track started most recently (and has been
+    /// playing long enough for Serato to mark it played) leads the mix.
+    private func updateBridge(_ computers: [String: BridgeLink.Message]) {
+        bridgeCount = computers.count
+        var all: [PlayerDeck] = []
+        for (computer, message) in computers.sorted(by: { $0.key < $1.key }) {
+            let app = message.source.components(separatedBy: " ").first ?? "Computer"   // "Serato"
+            let prefix = computers.count > 1 ? "\(app) (\(computer.replacingOccurrences(of: "KDM Bridge on ", with: ""))) " : "\(app) "
+            let lead = (message.decks.filter(\.played).max { $0.started < $1.started }
+                        ?? message.decks.max { $0.started < $1.started })?.deck
+            for d in message.decks {
+                let key = d.key.flatMap(MusicalKey.init(parsing:))
+                all.append(PlayerDeck(id: "bridge#\(computer)#\(d.deck)", label: prefix + d.deck,
+                                      key: key.map { DetectedKey(pitchClass: $0.pitchClass, isMinor: $0.isMinor) },
+                                      keyText: d.key, bpm: d.bpm.map(Float.init),
+                                      title: d.title, artist: d.artist, loaded: true,
+                                      playing: d.played || d.deck == lead, fader: nil,
+                                      isMaster: d.deck == lead))
+            }
+        }
+        bridgeDecks = all
+        publishDecks()
     }
 
     private func startPioneer() {
@@ -151,7 +195,7 @@ final class PlayerLink: ObservableObject {
     }
 
     private func publishDecks() {
-        let all = (denonDecks + cdjDecks).sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
+        let all = (denonDecks + cdjDecks + bridgeDecks).sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
         if all != decks { decks = all }
         updateStatus()
     }
@@ -161,6 +205,10 @@ final class PlayerLink: ObservableObject {
         client = nil
         pioneer?.stop()
         pioneer = nil
+        bridge?.stop()
+        bridge = nil
+        bridgeDecks = []
+        bridgeCount = 0
         decks = []
         denonDecks = []
         cdjDecks = []
@@ -197,9 +245,9 @@ final class PlayerLink: ObservableObject {
     }
 
     private func updateStatus() {
-        guard client != nil || pioneer != nil else { status = .off; return }
-        if deviceCount + pioneerCount > 0 {
-            status = .connected(players: deviceCount + pioneerCount)
+        guard client != nil || pioneer != nil || bridge != nil else { status = .off; return }
+        if deviceCount + pioneerCount + bridgeCount > 0 {
+            status = .connected(players: deviceCount + pioneerCount + bridgeCount)
         } else {
             status = permissionBlocked ? .needsPermission : .searching
         }

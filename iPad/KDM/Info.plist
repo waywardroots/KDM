@@ -4,6 +4,11 @@
 <dict>
 	<!-- Everything else is generated from the target's build settings
 	     (INFOPLIST_KEY_*). This file only adds what those can't express. -->
+	<!-- KDM Bridge on a computer (Serato decks), found over Bonjour. -->
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_kdm-decks._tcp</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<!-- Keep listening to the mixer while another app is in front. -->

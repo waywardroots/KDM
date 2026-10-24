@@ -416,6 +416,20 @@ final class AnalysisViewModel: ObservableObject {
             }
             result.append(r)
         }
+        // No per-channel audio (e.g. Serato on a laptop, or a 2-channel input):
+        // show each player / software deck as its own card instead.
+        if result.isEmpty {
+            for (i, deck) in players.decks.filter(\.loaded).enumerated() {
+                var r = ChannelReadout(id: 10_000 + i, name: deck.label, channelsLabel: "")
+                r.key = deck.key
+                r.bpm = deck.bpm
+                r.player = deck.isMaster ? "Leading" : nil
+                r.track = deck.trackLine.isEmpty ? nil : deck.trackLine
+                r.hasSignal = deck.playing
+                r.levelDb = deck.playing ? -12 : Self.floorDb
+                result.append(r)
+            }
+        }
         if result != channels { channels = result }
         seedPioneerMatches()
         updateMatches(levels: levels, now: now, dt: dt)
