@@ -118,6 +118,7 @@ final class PlayerLink: ObservableObject {
 
     /// Players answering the handshake but offering no services, in a row.
     private var refusals = 0
+    private var heardDevices = false
 
     // MARK: -
 
@@ -144,7 +145,11 @@ final class PlayerLink: ObservableObject {
     }
 
     private func append(_ line: String) {
-        if line.contains("multicast networking entitlement") || line.contains("Operation not permitted") {
+        // A real permission block means we never hear any device at all.
+        if line.hasPrefix("Found ") {
+            heardDevices = true
+            if permissionBlocked { permissionBlocked = false; updateStatus() }
+        } else if !heardDevices && line.contains("Operation not permitted") {
             permissionBlocked = true
             updateStatus()
         }

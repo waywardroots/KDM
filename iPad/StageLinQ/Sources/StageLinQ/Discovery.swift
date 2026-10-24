@@ -228,11 +228,9 @@ final class Discovery: @unchecked Sendable {
 
     /// On iPadOS a missing multicast entitlement shows up as EPERM or EHOSTUNREACH.
     private static func permissionError(_ err: Int32) -> Bool {
-        #if os(iOS)
-        return err == EPERM || err == EHOSTUNREACH
-        #else
+        // Only EPERM: "No route to host" also happens normally while an
+        // Ethernet adapter is still getting its address.
         return err == EPERM
-        #endif
     }
 
     /// "en0 10.0.0.36, en3 169.254.60.131" — every IPv4 interface that's up.
