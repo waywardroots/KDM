@@ -78,6 +78,8 @@ final class AnalysisViewModel: ObservableObject {
     @Published private(set) var mainKey: DetectedKey?
     /// Note energy of the main output, C … B (the note bars), normalised 0…1.
     @Published private(set) var chroma: [Float] = Array(repeating: 0, count: 12)
+    /// The deck the main key comes from ("Serato 2", "CDJ 1"), nil = from the audio.
+    @Published private(set) var mainDeckLabel: String?
     /// One entry per mixer channel (empty for a 1-2 channel input).
     @Published private(set) var channels: [ChannelReadout] = []
 
@@ -261,7 +263,9 @@ final class AnalysisViewModel: ObservableObject {
         // Media players connected: the main key is the key of the deck leading
         // the mix (the master deck if it's audible, otherwise the one with its
         // fader highest), exactly as the player analysed it.
-        if let deck = mainPlayerDeck(), let key = deck.key {
+        let lead = mainPlayerDeck()
+        mainDeckLabel = lead?.key != nil ? lead?.label : nil
+        if let deck = lead, let key = deck.key {
             lastKey = (key.pitchClass, key.isMinor)
             keyIsReliable = true
             keyDetail = "from \(deck.label)" + (deck.trackLine.isEmpty ? "" : " · \(deck.trackLine)")

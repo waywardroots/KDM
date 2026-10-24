@@ -45,7 +45,7 @@ struct ContentView: View {
                 mainOutputCard
                 channelsSection
                 keySettings
-                noteBarsCard
+                if !decksOnly { noteBarsCard }
             }
             .padding(24)
             .frame(maxWidth: 1100)
@@ -186,17 +186,27 @@ struct ContentView: View {
                     NextKeysView(from: key, model: model)
                 }
 
-                VStack(spacing: 6) {
-                    LevelMeterView(label: model.isStereo ? "L" : "M", meter: model.left)
-                    if model.isStereo {
-                        LevelMeterView(label: "R", meter: model.right)
+                if !decksOnly {
+                    VStack(spacing: 6) {
+                        LevelMeterView(label: model.isStereo ? "L" : "M", meter: model.left)
+                        if model.isStereo {
+                            LevelMeterView(label: "R", meter: model.right)
+                        }
                     }
                 }
             }
         }
     }
 
+    /// The main key comes from a deck (e.g. Serato through KDM Bridge) and the
+    /// only audio is the iPad's own microphone: the mic's meters and note bars
+    /// would just show the room, so they're hidden.
+    private var decksOnly: Bool {
+        model.mainDeckLabel != nil && (audio.currentInput?.kind == "Built-in mic" || audio.channelCount == 0)
+    }
+
     private var mainOutputTitle: String {
+        if decksOnly, let deck = model.mainDeckLabel { return "Main · \(deck)" }
         guard audio.channelCount > 0 else { return "Main output" }
         if case .stereo(let l) = audio.channelSelection {
             return "Main output · USB \(l + 1) + \(l + 2)"
