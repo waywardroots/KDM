@@ -54,20 +54,12 @@ final class PlayerLink: ObservableObject {
     @Published private(set) var log: [String] = []
 
     private static let enabledKey = "kdm.players.enabled"
-    private static let tokenKey = "kdm.players.token"
-
-    /// The same StageLinQ identity on every launch. Players keep a session open
-    /// for a while after the app is closed; with a new random token each time,
-    /// a relaunched KDM looked like an unknown second device at the same address
-    /// and the players never sent their service list.
-    private static func savedToken() -> Token {
-        if let bytes = UserDefaults.standard.array(forKey: tokenKey) as? [Int], bytes.count == 16 {
-            return Token(bytes.map { UInt8(truncatingIfNeeded: $0) })
-        }
-        let token = Token.random()
-        UserDefaults.standard.set(token.bytes.map(Int.init), forKey: tokenKey)
-        return token
-    }
+    /// Our StageLinQ identity. A fresh one each time the connection starts:
+    /// with one fixed identity the players kept answering the handshake but
+    /// offering no services (the Mac monitor, with a fresh identity per run,
+    /// got them straight away). If the players keep refusing, KDM also switches
+    /// to a new identity by itself (see `append`).
+    private var token = Token.random()
     private static let timeFormat: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss.SSS"
@@ -83,7 +75,7 @@ final class PlayerLink: ObservableObject {
 
     func start() {
         guard enabled, client == nil else { return }
-        let c = StageLinQClient(name: "kdm", softwareName: "KDM", softwareVersion: "1.0", token: Self.savedToken())
+        let c = StageLinQClient(name: "kdm", softwareName: "KDM", softwareVersion: "1.0", token: token)
         c.onLog = { [weak self] line in
             Task { @MainActor in self?.append(line) }
         }
@@ -119,8 +111,13 @@ final class PlayerLink: ObservableObject {
     func restart() {
         stop()
         permissionBlocked = false
+        refusals = 0
+        token = Token.random()
         start()
     }
+
+    /// Players answering the handshake but offering no services, in a row.
+    private var refusals = 0
 
     // MARK: -
 
@@ -151,8 +148,24 @@ final class PlayerLink: ObservableObject {
             permissionBlocked = true
             updateStatus()
         }
+        if line.contains("no reply from the device") {
+            refusals += 1
+        } else if line.contains(" offers StateMap") {
+            refusals = 0
+        }
         log.append("\(Self.timeFormat.string(from: Date()))  \(line)")
         print("[KDM players] \(line)")      // also in Xcode's console when run from Xcode
         if log.count > 200 { log.removeFirst(log.count - 200) }
+
+        // Refused four times (two rounds with two players) and nothing loaded:
+        // start over with a new identity.
+        if refusals >= 4 && decks.isEmpty {
+            let old = token
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.token == old else { return }
+                self.log.append("\(Self.timeFormat.string(from: Date()))  Players keep refusing; switching to a new identity")
+                self.restart()
+            }
+        }
     }
 }
