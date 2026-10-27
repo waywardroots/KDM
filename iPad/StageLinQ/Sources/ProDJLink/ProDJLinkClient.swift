@@ -33,6 +33,12 @@ public final class ProDJLinkClient: @unchecked Sendable {
     private var status: [Int: CDJStatus] = [:]
     private var lastPublished: [CDJStatus] = []
 
+    // Track titles from the players' databases, by "player/slot/type/id".
+    private let dbQueue = DispatchQueue(label: "prodjlink.dbserver")
+    private var metadata: [String: TrackMetadata] = [:]
+    private var pendingLookups: Set<String> = []
+    private var failedLookups: [String: Date] = [:]
+
     // The interface we joined on (where the first device was heard).
     private var iface: (index: UInt32, name: String, address: in_addr_t, broadcast: in_addr_t, mac: [UInt8])?
     private enum Phase { case waiting, joining(step: Int), online }
@@ -164,7 +170,16 @@ public final class ProDJLinkClient: @unchecked Sendable {
     }
 
     private func handleStatus(_ b: [UInt8], from: String, ifIndex: UInt32) {
-        guard let s = ProDJLinkPacket.parseStatus(b) else { return }
+        guard var s = ProDJLinkPacket.parseStatus(b) else { return }
+        if s.loaded, s.rekordboxID != 0, s.trackSourcePlayer != 0 {
+            let key = "\(s.trackSourcePlayer)/\(s.trackSlot)/\(s.trackType)/\(s.rekordboxID)"
+            if let m = metadata[key] {
+                s.title = m.title
+                s.artist = m.artist
+            } else {
+                lookUp(key, for: s)
+            }
+        }
         if s.player == Int(deviceNumber) { return }
         let old = status[s.player]
         if old == nil {
@@ -174,6 +189,40 @@ public final class ProDJLinkClient: @unchecked Sendable {
         }
         status[s.player] = s
         publishStatus()
+    }
+
+    /// Fetch title / artist from the database of the player holding the media.
+    private func lookUp(_ key: String, for s: CDJStatus) {
+        guard !pendingLookups.contains(key),
+              failedLookups[key].map({ Date().timeIntervalSince($0) > 30 }) ?? true,
+              let host = devices[s.trackSourcePlayer]?.device.address,
+              s.trackSlot != 0x06, s.trackSlot != 0x09 else { return }   // not streaming
+        pendingLookups.insert(key)
+        let index = iface?.index, local = iface?.address
+        let source = s.trackSourcePlayer, slot = s.trackSlot, type = s.trackType, id = s.rekordboxID
+        dbQueue.async { [weak self] in
+            let result = Result {
+                try DBServer.fetchMetadata(host: host, interfaceIndex: index, localAddress: local,
+                                           posingAs: source, slot: slot, trackType: type, rekordboxID: id)
+            }
+            self?.queue.async {
+                guard let self else { return }
+                self.pendingLookups.remove(key)
+                switch result {
+                case .success(let m):
+                    self.metadata[key] = m
+                    self.log("Track on player \(source): " + ([m.artist, m.title].compactMap { $0 }.joined(separator: " – ").nilIfEmpty ?? "no title in database"))
+                    for (n, var st) in self.status where "\(st.trackSourcePlayer)/\(st.trackSlot)/\(st.trackType)/\(st.rekordboxID)" == key {
+                        st.title = m.title; st.artist = m.artist
+                        self.status[n] = st
+                    }
+                    self.publishStatus()
+                case .failure(let e):
+                    self.failedLookups[key] = Date()
+                    self.log("Couldn't read the track title from player \(source): \(e)")
+                }
+            }
+        }
     }
 
     private func publishStatus() {
@@ -349,5 +398,8 @@ public final class ProDJLinkClient: @unchecked Sendable {
         NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
                 userInfo: [NSLocalizedDescriptionKey: "\(what): \(String(cString: strerror(errno)))"])
     }
+}
+fileprivate extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 #endif

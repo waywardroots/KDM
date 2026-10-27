@@ -63,6 +63,10 @@
 			isa = PBXBuildFile;
 			fileRef = 3706AFFDF9279DDEBE70DF69;
 		};
+		417E61081572C2EE6CE3D2BB = {
+			isa = PBXBuildFile;
+			fileRef = BA2D33707949CA308FCCBBA6;
+		};
 		428A0388A8CC46CE623413F5 = {
 			isa = PBXBuildFile;
 			fileRef = BD6B1DC37B6327342EF44C35;
@@ -278,6 +282,12 @@
 			path = PitchDetector.cpp;
 			sourceTree = "<group>";
 		};
+		BA2D33707949CA308FCCBBA6 = {
+			isa = PBXFileReference;
+			lastKnownFileType = sourcecode.swift;
+			path = DBServer.swift;
+			sourceTree = "<group>";
+		};
 		BD6B1DC37B6327342EF44C35 = {
 			isa = PBXFileReference;
 			lastKnownFileType = sourcecode.swift;
@@ -412,6 +422,7 @@
 			children = (
 				E8C864BE07F91065B4158E6F,
 				A08EE799EB79C482E483F208,
+				BA2D33707949CA308FCCBBA6,
 			);
 			name = ProDJLink;
 			path = StageLinQ/Sources/ProDJLink;
@@ -556,6 +567,7 @@
 				68C1D88C0672865294F1FE48,
 				040AF6004A2F5929B6C566D4,
 				651B02029997BA57DCC72182,
+				417E61081572C2EE6CE3D2BB,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

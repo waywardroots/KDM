@@ -21,6 +21,8 @@ struct ChannelReadout: Identifiable, Equatable {
     var track: String? = nil
     /// Players are connected but it isn't known yet which one feeds this channel.
     var matching = false
+    /// Nothing has been heard on this channel yet and no player feeds it.
+    var empty = false
 }
 
 /// Which media-player deck feeds a mixer channel.
@@ -423,8 +425,11 @@ final class AnalysisViewModel: ObservableObject {
             levels[strip.id] = state.db      // peak with fall-off, so beats' gaps don't count as silence
             // A media player feeds this channel: use its key and tempo (they're
             // there as soon as a track loads, even with the fader down).
+            let everHeard = state.lastSignal != .distantPast
             if !players.decks.isEmpty, playerAssignments[strip.id] ?? .auto == .auto, autoMatches[strip.id] == nil {
-                r.matching = true
+                if everHeard { r.matching = true } else { r.empty = true }
+            } else if !everHeard && playerDeck(forChannel: strip.id) == nil {
+                r.empty = true
             }
             if let deck = playerDeck(forChannel: strip.id), deck.loaded {
                 r.player = deck.label

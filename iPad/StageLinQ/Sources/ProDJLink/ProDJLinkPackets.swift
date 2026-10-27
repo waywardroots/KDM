@@ -62,6 +62,9 @@ public struct CDJStatus: Equatable {
     public var key: CDJKey?
     public var keyShiftSemitones: Int
     public var masterTempo: Bool?
+    /// From the source player's rekordbox database (filled in by the client).
+    public var title: String? = nil
+    public var artist: String? = nil
 
     /// A track is loaded (play state isn't "no track"), as beat-link decides it.
     public var loaded: Bool { playState != 0 || (trackSourcePlayer != 0 && rekordboxID != 0) }
@@ -74,6 +77,7 @@ public struct CDJStatus: Equatable {
         if onAir { parts.append("on air") }
         if isMaster { parts.append("master") }
         if keyShiftSemitones != 0 { parts.append(String(format: "key shift %+d", keyShiftSemitones)) }
+        if let title { parts.append([artist, title].compactMap { $0 }.joined(separator: " – ")) }
         return "\(name) #\(player): " + parts.joined(separator: ", ")
     }
     public var effectiveBPM: Double? { trackBPM.map { $0 * pitch } }

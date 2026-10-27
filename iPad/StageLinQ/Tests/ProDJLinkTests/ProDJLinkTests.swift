@@ -113,3 +113,42 @@ final class ProDJLinkTests: XCTestCase {
         XCTAssertEqual(c3[0x24], 7)
     }
 }
+
+final class DBServerTests: XCTestCase {
+
+    func testFieldEncoding() {
+        XCTAssertEqual(DBServer.Field.number(1, size: 4).encoded(), [0x11, 0, 0, 0, 1])
+        XCTAssertEqual(DBServer.Field.number(0x2002, size: 2).encoded(), [0x10, 0x20, 0x02])
+        XCTAssertEqual(DBServer.Field.string("Hi").encoded(), [0x26, 0, 0, 0, 3, 0, 0x48, 0, 0x69, 0, 0])
+    }
+
+    func testMessageRoundTrip() throws {
+        let m = DBServer.Message(transaction: 1, type: 0x2002,
+                                 arguments: [DBServer.rmst(player: 2, slot: 3, trackType: 1), .number(300, size: 4)])
+        let bytes = m.encoded()
+        // Header: start, transaction, type, argc, 12 argument tags.
+        XCTAssertEqual(Array(bytes[0..<5]), [0x11, 0x87, 0x23, 0x49, 0xae])
+        XCTAssertEqual(Array(bytes[10..<13]), [0x10, 0x20, 0x02])
+        XCTAssertEqual(Array(bytes[13..<15]), [0x0f, 2])
+        var cursor = 0
+        let reader = DBServer.Reader(read: { n in
+            defer { cursor += n }
+            guard cursor + n <= bytes.count else { throw DBServerError.socket("eof") }
+            return Array(bytes[cursor..<(cursor + n)])
+        })
+        let back = try reader.message()
+        XCTAssertEqual(back, m)
+        XCTAssertEqual(back.arguments[0].number, 0x0201_0301)   // player 2, main menu, USB, rekordbox
+    }
+
+    func testMetadataFromMenuItems() {
+        func item(_ type: UInt32, _ label: String) -> DBServer.Message {
+            DBServer.Message(transaction: 2, type: 0x4101, arguments: [
+                .number(0, size: 4), .number(1, size: 4), .number(UInt32(label.utf16.count * 2 + 2), size: 4), .string(label),
+                .number(2, size: 4), .string(""), .number(type, size: 4), .number(0, size: 4), .number(0, size: 4), .number(0, size: 4)])
+        }
+        let m = DBServer.metadata(from: [item(0x0004, "Think in Nothing"), item(0x0007, "Oscar Cornell"), item(0x000d, "x")])
+        XCTAssertEqual(m.title, "Think in Nothing")
+        XCTAssertEqual(m.artist, "Oscar Cornell")
+    }
+}

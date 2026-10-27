@@ -186,7 +186,7 @@ final class PlayerLink: ObservableObject {
             return PlayerDeck(id: "cdj#\(p.player)", label: "CDJ \(p.player)",
                               key: key, keyText: p.currentKey?.description,
                               bpm: p.effectiveBPM.map(Float.init),
-                              title: nil, artist: nil,
+                              title: p.title, artist: p.artist,
                               loaded: p.loaded, playing: p.playing,
                               fader: onAirKnown ? (p.onAir ? 1 : 0) : nil,
                               isMaster: p.isMaster)

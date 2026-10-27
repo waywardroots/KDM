@@ -385,7 +385,8 @@ struct ChannelCard: View {
             }
 
             // Track from the media player (blank line otherwise, so cards line up).
-            Text(channel.track ?? (channel.matching ? "Matching player… move this channel's fader" : " "))
+            Text(channel.track ?? (channel.matching ? "Matching player… move this channel's fader"
+                                   : channel.empty ? "Nothing playing" : " "))
                 .font(.caption2)
                 .foregroundStyle(channel.matching ? Color.orange : Color.secondary)
                 .lineLimit(1)
