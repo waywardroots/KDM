@@ -86,6 +86,9 @@ final class AnalysisViewModel: ObservableObject {
 
     /// Level of each input stereo pair (dBFS, with fall-off): USB 1+2, 3+4, …
     @Published private(set) var pairLevels: [Float] = []
+    /// Set while the "All USB inputs" card is on screen; the live meters only
+    /// update then, so the main screen isn't redrawn for them 30 times a second.
+    var showingAllInputs = false
 
     /// The deck the main key comes from ("Serato 2", "CDJ 1"), nil = from the audio.
     @Published private(set) var mainDeckLabel: String?
@@ -290,10 +293,10 @@ final class AnalysisViewModel: ObservableObject {
         if now.timeIntervalSince(lastHealth) >= 1 {
             lastHealth = now
             let h = audio.inputMeter.health()
-            audioHealth = String(format: "%.0f buffers/s · %d gap%@ over 100 ms (longest %.0f ms) · %d restart%@ · %d auto-recover%@ · UI tick %.0f ms",
+            audioHealth = String(format: "%.0f buffers/s · %d gap%@ over 100 ms (longest %.0f ms) · %d restart%@ · %d auto-recover%@ · %d skipped · UI tick %.0f ms",
                                  h.buffersPerSecond, h.gaps, h.gaps == 1 ? "" : "s", h.longestGapMs,
                                  audio.restartCount, audio.restartCount == 1 ? "" : "s",
-                                 audio.stallRecoveries, audio.stallRecoveries == 1 ? "y" : "ies", dt * 1000)
+                                 audio.stallRecoveries, audio.stallRecoveries == 1 ? "y" : "ies", audio.worker.dropped, dt * 1000)
             audio.checkForStall()
         }
     }
@@ -373,6 +376,10 @@ final class AnalysisViewModel: ObservableObject {
     }
     private func updatePairLevels(dt: Float) {
         let peaks = audio.inputMeter.take(channels: audio.channelCount)
+        guard showingAllInputs else {
+            if !pairLevels.isEmpty { pairLevels = [] }
+            return
+        }
         let pairs = stride(from: 0, to: peaks.count, by: 2).map { i in
             Self.db(max(peaks[i], i + 1 < peaks.count ? peaks[i + 1] : 0))
         }

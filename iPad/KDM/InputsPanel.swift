@@ -366,6 +366,8 @@ struct InputsPanel: View {
                 }
             }
         }
+        .onAppear { model.showingAllInputs = true }
+        .onDisappear { model.showingAllInputs = false }
     }
 
     private func pairRole(_ left: Int) -> String {

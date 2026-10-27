@@ -97,6 +97,8 @@ final class AudioInputManager: ObservableObject {
     @Published private(set) var channelCount = 0
     /// Live peak of every input channel (for the "All USB inputs" meters).
     let inputMeter = InputPeakMeter()
+    /// Where the analysis runs (off the audio tap).
+    let worker = AnalysisWorker()
     @Published private(set) var channelNames: [String] = []
     /// The pair analysed as the main output (mixer master) — the big read-out.
     @Published private(set) var channelSelection: ChannelSelection = .stereo(left: 0)
@@ -184,6 +186,7 @@ final class AudioInputManager: ObservableObject {
     func restart() {
         restartCount += 1
         inputMeter.resetHealth()
+        worker.resetStats()
         pendingRestart?.cancel()
         stopEngine()
         engine = AVAudioEngine()
@@ -230,8 +233,8 @@ final class AudioInputManager: ObservableObject {
 
     /// Clears key / tempo history on every channel (e.g. when a new set starts).
     func resetAllAnalysis() {
-        analysis.reset()
-        strips.forEach { $0.engine.reset() }
+        let engines = [analysis] + strips.map(\.engine)
+        worker.queue.async { engines.forEach { $0.reset() } }
     }
 
     // MARK: - Session and engine
@@ -368,6 +371,7 @@ final class AudioInputManager: ObservableObject {
             input.removeTap(onBus: 0)
             tapInstalled = false
         }
+        worker.drain()
 
         // The tap is off here, so engines can be (re)prepared safely.
         rebuildStrips()
@@ -377,7 +381,7 @@ final class AudioInputManager: ObservableObject {
                                      right: channelSelection.rightIndex)]
         routes += strips.map { Route(engine: $0.engine, left: $0.selection.leftIndex, right: $0.selection.rightIndex) }
 
-        input.installTap(onBus: 0, bufferSize: 1024, format: format, block: Self.makeTapBlock(routes: routes, meter: inputMeter))
+        input.installTap(onBus: 0, bufferSize: 1024, format: format, block: Self.makeTapBlock(routes: routes, meter: inputMeter, worker: worker))
         tapInstalled = true
     }
 
@@ -463,18 +467,32 @@ final class AudioInputManager: ObservableObject {
     }
 
     /// Built outside the main actor: the tap runs on an audio thread.
-    nonisolated private static func makeTapBlock(routes: [Route], meter: InputPeakMeter) -> AVAudioNodeTapBlock {
+    nonisolated private static func makeTapBlock(routes: [Route], meter: InputPeakMeter,
+                                                 worker: AnalysisWorker) -> AVAudioNodeTapBlock {
+        let used = Array(Set(routes.flatMap { [$0.left] + ($0.right.map { [$0] } ?? []) })).sorted()
         return { buffer, _ in
             guard let data = buffer.floatChannelData else { return }
             let channels = Int(buffer.format.channelCount)
             let frames = Int(buffer.frameLength)
             meter.update(data, channels: channels, frames: frames)
-            for route in routes where route.left < channels {
-                var rightPtr: UnsafePointer<Float>? = nil
-                if let r = route.right, r < channels {
-                    rightPtr = UnsafePointer(data[r])
+
+            // Copy just the channels the engines read, and hand the work off.
+            var copies = [[Float]](repeating: [], count: channels)
+            for c in used where c < channels {
+                copies[c] = Array(UnsafeBufferPointer(start: data[c], count: frames))
+            }
+            worker.submit {
+                for route in routes where route.left < channels {
+                    copies[route.left].withUnsafeBufferPointer { l in
+                        if let r = route.right, r < channels {
+                            copies[r].withUnsafeBufferPointer { rp in
+                                route.engine.processLeft(l.baseAddress!, right: rp.baseAddress, frameCount: frames)
+                            }
+                        } else {
+                            route.engine.processLeft(l.baseAddress!, right: nil, frameCount: frames)
+                        }
+                    }
                 }
-                route.engine.processLeft(UnsafePointer(data[route.left]), right: rightPtr, frameCount: frames)
             }
         }
     }
@@ -487,6 +505,7 @@ final class AudioInputManager: ObservableObject {
         if engine.isRunning {
             engine.stop()
         }
+        worker.drain()
     }
 
     // MARK: - Hot-plugging, interruptions
