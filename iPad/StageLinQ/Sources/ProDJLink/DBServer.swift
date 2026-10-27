@@ -236,7 +236,7 @@ public enum DBServer {
             addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
             addr.sin_family = sa_family_t(AF_INET)
             addr.sin_port = port.bigEndian
-            guard inet_pton(AF_INET, host, &addr.sin_addr) == 1 else { close(s); throw DBServerError.socket("bad address \(host)") }
+            guard inet_pton(AF_INET, host, &addr.sin_addr) == 1 else { Darwin.close(s); throw DBServerError.socket("bad address \(host)") }
             let r = withUnsafePointer(to: &addr) {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.connect(s, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
             }
