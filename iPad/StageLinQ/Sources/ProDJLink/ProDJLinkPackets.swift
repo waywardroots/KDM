@@ -50,6 +50,7 @@ public struct CDJStatus: Equatable {
     public var trackSlot: Int             // Sr: 1 CD, 2 SD, 3 USB, 4 rekordbox, …
     public var trackType: Int             // Tr: 1 rekordbox, 2 unanalysed, 5 CD, 6 streaming
     public var rekordboxID: UInt32
+    public var playState: Int            // P1 (0x7b): 0 no track, 3 playing, 5 paused, …
     public var playing: Bool
     public var isMaster: Bool
     public var sync: Bool
@@ -62,7 +63,19 @@ public struct CDJStatus: Equatable {
     public var keyShiftSemitones: Int
     public var masterTempo: Bool?
 
-    public var loaded: Bool { trackSourcePlayer != 0 && rekordboxID != 0 }
+    /// A track is loaded (play state isn't "no track"), as beat-link decides it.
+    public var loaded: Bool { playState != 0 || (trackSourcePlayer != 0 && rekordboxID != 0) }
+
+    /// One line for the log: "CDJ-3000 #2: Am, 124.00 BPM, playing, on air, master".
+    public var summary: String {
+        guard loaded else { return "\(name) #\(player): no track" }
+        var parts = [currentKey?.description ?? "no key", effectiveBPM.map { String(format: "%.2f BPM", $0) } ?? "no BPM"]
+        parts.append(playing ? "playing" : "stopped")
+        if onAir { parts.append("on air") }
+        if isMaster { parts.append("master") }
+        if keyShiftSemitones != 0 { parts.append(String(format: "key shift %+d", keyShiftSemitones)) }
+        return "\(name) #\(player): " + parts.joined(separator: ", ")
+    }
     public var effectiveBPM: Double? { trackBPM.map { $0 * pitch } }
     /// What you hear: the key with key shift applied.
     public var currentKey: CDJKey? { key?.transposed(by: keyShiftSemitones) }
@@ -81,10 +94,12 @@ public enum ProDJLinkPacket {
         b.count > 0x0b && Array(b[0..<10]) == magic
     }
 
-    static func name(_ b: [UInt8]) -> String {
-        guard b.count >= nameOffset + nameLength else { return "" }
-        let raw = b[nameOffset..<(nameOffset + nameLength)].prefix { $0 != 0 }
-        return String(decoding: raw, as: UTF8.self)
+    /// Keep-alives (port 50000) carry the name at 0x0c; status packets
+    /// (port 50002) one byte earlier, at 0x0b.
+    static func name(_ b: [UInt8], at offset: Int = nameOffset) -> String {
+        guard b.count >= offset + nameLength else { return "" }
+        let raw = b[offset..<(offset + nameLength)].prefix { $0 != 0 }
+        return String(decoding: raw, as: UTF8.self).trimmingCharacters(in: .whitespaces)
     }
 
     static func u16(_ b: [UInt8], _ o: Int) -> UInt16 { UInt16(b[o]) << 8 | UInt16(b[o + 1]) }
@@ -143,11 +158,12 @@ public enum ProDJLinkPacket {
 
         return CDJStatus(
             player: Int(b[0x21]),
-            name: name(b),
+            name: name(b, at: 0x0b),
             trackSourcePlayer: Int(b[0x28]),
             trackSlot: Int(b[0x29]),
             trackType: Int(b[0x2a]),
             rekordboxID: u32(b, 0x2c),
+            playState: Int(b[0x7b]),
             playing: flags & 0x40 != 0,
             isMaster: flags & 0x20 != 0,
             sync: flags & 0x10 != 0,

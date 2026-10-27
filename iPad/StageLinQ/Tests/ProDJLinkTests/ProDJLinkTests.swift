@@ -10,7 +10,8 @@ final class ProDJLinkTests: XCTestCase {
         var b = [UInt8](repeating: 0, count: 0x200)
         b.replaceSubrange(0..<10, with: ProDJLinkPacket.magic)
         b[0x0a] = 0x0a
-        b.replaceSubrange(0x0c..<0x14, with: Array("CDJ-3000".utf8))
+        b.replaceSubrange(0x0b..<0x13, with: Array("CDJ-3000".utf8))
+        b[0x7b] = 0x03                   // playing
         b[0x20] = 0x06
         b[0x21] = player
         b[0x24] = player
@@ -67,6 +68,7 @@ final class ProDJLinkTests: XCTestCase {
     func testNoTrackAndOlderPlayer() throws {
         var b = cdj3000Status(note: 0, mode: 0, bpm: 0xffff)
         b[0x28] = 0
+        b[0x7b] = 0
         let empty = try XCTUnwrap(ProDJLinkPacket.parseStatus(b))
         XCTAssertFalse(empty.loaded)
         XCTAssertNil(empty.trackBPM)

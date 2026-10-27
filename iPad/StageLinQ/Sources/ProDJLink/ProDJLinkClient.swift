@@ -166,7 +166,12 @@ public final class ProDJLinkClient: @unchecked Sendable {
     private func handleStatus(_ b: [UInt8], from: String, ifIndex: UInt32) {
         guard let s = ProDJLinkPacket.parseStatus(b) else { return }
         if s.player == Int(deviceNumber) { return }
-        if status[s.player] == nil { log("Status from \(s.name) #\(s.player)" + (s.key == nil ? " (no key field: not a CDJ-3000?)" : "")) }
+        let old = status[s.player]
+        if old == nil {
+            log(s.summary + (s.key == nil && s.loaded ? " (no key field: not a CDJ-3000?)" : ""))
+        } else if let old, old.loaded != s.loaded || old.currentKey != s.currentKey || old.onAir != s.onAir {
+            log(s.summary)      // track, key or on-air changed
+        }
         status[s.player] = s
         publishStatus()
     }
