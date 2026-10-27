@@ -10,14 +10,17 @@ final class InputPeakMeter: @unchecked Sendable {
     private var peaks = [Float](repeating: 0, count: 32)
 
     /// From the audio thread: the loudest sample per channel in this buffer.
+    /// No allocation and only a brief lock, so it can't hold up the audio.
     func update(_ data: UnsafePointer<UnsafeMutablePointer<Float>>, channels: Int, frames: Int) {
-        let n = min(channels, peaks.count)
-        var local = [Float](repeating: 0, count: n)
-        for c in 0..<n {
-            vDSP_maxmgv(data[c], 1, &local[c], vDSP_Length(frames))
-        }
+        let n = min(channels, 32)
         os_unfair_lock_lock(&lock)
-        for c in 0..<n { peaks[c] = max(peaks[c], local[c]) }
+        peaks.withUnsafeMutableBufferPointer { p in
+            for c in 0..<n {
+                var m: Float = 0
+                vDSP_maxmgv(data[c], 1, &m, vDSP_Length(frames))
+                if m > p[c] { p[c] = m }
+            }
+        }
         os_unfair_lock_unlock(&lock)
     }
 
