@@ -390,6 +390,16 @@ struct InputsPanel: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 6)
                 }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Audio health").font(.subheadline.weight(.semibold))
+                    Text(model.audioHealth.isEmpty ? "—" : model.audioHealth)
+                        .font(.system(.footnote, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                    Text("Steady buffers/s and no gaps = the mixer's audio arrives without interruption; then any jumpiness is in the display.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
                 Button("Re-scan audio devices") { audio.restart() }
                     .buttonStyle(.bordered)
             }

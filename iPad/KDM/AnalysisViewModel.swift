@@ -80,6 +80,10 @@ final class AnalysisViewModel: ObservableObject {
     @Published private(set) var mainKey: DetectedKey?
     /// Note energy of the main output, C … B (the note bars), normalised 0…1.
     @Published private(set) var chroma: [Float] = Array(repeating: 0, count: 12)
+    /// "43 buffers/s · 0 gaps" — refreshed once a second.
+    @Published private(set) var audioHealth = ""
+    private var lastHealth = Date.distantPast
+
     /// Level of each input stereo pair (dBFS, with fall-off): USB 1+2, 3+4, …
     @Published private(set) var pairLevels: [Float] = []
 
@@ -283,6 +287,13 @@ final class AnalysisViewModel: ObservableObject {
 
         updateChannels(now: now, dt: dt)
         updatePairLevels(dt: dt)
+        if now.timeIntervalSince(lastHealth) >= 1 {
+            lastHealth = now
+            let h = audio.inputMeter.health()
+            audioHealth = String(format: "%.0f buffers/s · %d gap%@ over 100 ms (longest %.0f ms) · %d restart%@ · UI tick %.0f ms",
+                                 h.buffersPerSecond, h.gaps, h.gaps == 1 ? "" : "s", h.longestGapMs,
+                                 audio.restartCount, audio.restartCount == 1 ? "" : "s", dt * 1000)
+        }
     }
 
     /// The deck leading the mix, or nil when no player deck is audible.

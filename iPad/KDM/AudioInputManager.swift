@@ -163,7 +163,12 @@ final class AudioInputManager: ObservableObject {
     }
 
     /// Tears the audio graph down and rebuilds it for the current route.
+    /// How many times the audio engine was (re)started, and the last reason.
+    @Published private(set) var restartCount = 0
+
     func restart() {
+        restartCount += 1
+        inputMeter.resetHealth()
         pendingRestart?.cancel()
         stopEngine()
         engine = AVAudioEngine()
