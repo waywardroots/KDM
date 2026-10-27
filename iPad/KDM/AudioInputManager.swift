@@ -388,14 +388,46 @@ final class AudioInputManager: ObservableObject {
         let ignoredLefts: Set<Int>   // pairs that aren't mixer channels
     }
 
-    /// Pioneer DJM-A9 (12 ch): USB 1/2 = mix (REC OUT), 3/4 … 9/10 = CH1 … CH4
-    /// (pre or post fader, set in the mixer's Setting Utility), 11/12 = FX send.
-    var mixerProfile: MixerProfile? {
-        let name = currentInput?.name.uppercased() ?? ""
-        if name.contains("DJM-A9") && channelCount >= 12 {
-            return MixerProfile(mainLeft: 0, ignoredLefts: [10])
+    /// How the mixer lays out its USB channels. Auto picks from the device name.
+    enum MixerLayout: String, CaseIterable, Identifiable {
+        case auto
+        case masterLast    // Denon X1800: USB 1/2 … 7/8 = CH1 … CH4, 9/10 = master
+        case masterFirst   // Pioneer DJM-A9: USB 1/2 = mix, 3/4 … 9/10 = CH1 … CH4, 11/12 = FX send
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .auto:        return "Auto"
+            case .masterLast:  return "Master last (Denon)"
+            case .masterFirst: return "Master first (Pioneer)"
+            }
         }
-        return nil
+    }
+
+    @Published var mixerLayout: MixerLayout =
+        MixerLayout(rawValue: UserDefaults.standard.string(forKey: "kdm.mixer.layout") ?? "") ?? .auto {
+        didSet {
+            defaults.set(mixerLayout.rawValue, forKey: "kdm.mixer.layout")
+            // Re-pick the main pair for the new layout and rebuild the strips.
+            if let uid = currentInputID { defaults.removeObject(forKey: Keys.channels(uid)) }
+            if let profile = mixerProfile { channelSelection = .stereo(left: profile.mainLeft) }
+            else if channelCount >= 4 { channelSelection = .stereo(left: (channelCount / 2 - 1) * 2) }
+            if engine.isRunning { reinstallTap() }
+        }
+    }
+
+    /// The layout in effect: the user's choice, or for Auto a Pioneer / DJM
+    /// mixer with 12+ channels (the DJM-A9 reports itself in several ways).
+    var effectiveLayout: MixerLayout {
+        if mixerLayout != .auto { return mixerLayout }
+        let name = currentInput?.name.uppercased() ?? ""
+        let pioneer = name.contains("DJM") || name.contains("PIONEER") || name.contains("A9")
+        return pioneer && channelCount >= 12 ? .masterFirst : .masterLast
+    }
+
+    var mixerProfile: MixerProfile? {
+        guard effectiveLayout == .masterFirst, channelCount >= 4 else { return nil }
+        // Ignore the FX-send pair (11/12) when there is one.
+        return MixerProfile(mainLeft: 0, ignoredLefts: channelCount >= 12 ? [10] : [])
     }
 
     /// One engine and the input channels that feed it.

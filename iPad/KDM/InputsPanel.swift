@@ -290,6 +290,20 @@ struct InputsPanel: View {
                 Toggle("Show the key of each mixer channel", isOn: $audio.analyseAllChannels)
                     .disabled(audio.channelCount < 4)
 
+                if audio.channelCount >= 4 {
+                    LabeledRow("Mixer layout") {
+                        Picker("Mixer layout", selection: $audio.mixerLayout) {
+                            ForEach(AudioInputManager.MixerLayout.allCases) { l in
+                                Text(l == .auto ? "Auto (\(audio.effectiveLayout.title))" : l.title).tag(l)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    Text("Denon X1800: channels on USB 1+2 … 7+8, master on 9+10. Pioneer DJM-A9: mix on USB 1+2, CH1 … CH4 on 3+4 … 9+10, FX send on 11+12.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
                 if audio.channelCount < 4 {
                     Text("This input has \(audio.channelCount) channel\(audio.channelCount == 1 ? "" : "s"). Connect a mixer that sends each channel over USB (e.g. the Denon X1800) to see a key per channel.")
                         .font(.footnote)
