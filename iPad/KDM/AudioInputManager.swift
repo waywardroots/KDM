@@ -309,7 +309,9 @@ final class AudioInputManager: ObservableObject {
         // (a mixer) defaults to its LAST pair, which is where mixers usually put the
         // master (X1800: USB 9 + 10); a 1-2 channel device uses its first pair.
         var selection: ChannelSelection
-        if channelCount >= 4 {
+        if let profile = mixerProfile {
+            selection = .stereo(left: profile.mainLeft)
+        } else if channelCount >= 4 {
             selection = .stereo(left: (channelCount / 2 - 1) * 2)
         } else {
             selection = channelCount >= 2 ? .stereo(left: 0) : .mono(0)
@@ -362,7 +364,10 @@ final class AudioInputManager: ObservableObject {
             return
         }
         let main = Set([channelSelection.leftIndex, channelSelection.rightIndex].compactMap { $0 })
-        let pairs = stride(from: 0, to: channelCount - 1, by: 2).filter { !main.contains($0) && !main.contains($0 + 1) }
+        var pairs = stride(from: 0, to: channelCount - 1, by: 2).filter { !main.contains($0) && !main.contains($0 + 1) }
+        if let profile = mixerProfile {
+            pairs = pairs.filter { !profile.ignoredLefts.contains($0) }
+        }
 
         while stripEnginePool.count < pairs.count {
             let e = KDMAnalysisEngine()
@@ -375,6 +380,22 @@ final class AudioInputManager: ObservableObject {
             e.prepare(withSampleRate: sampleRate, maxBlockSize: 4096)
             return ChannelStrip(id: left, name: "Ch \(i + 1)", selection: .stereo(left: left), engine: e)
         }
+    }
+
+    /// Mixers whose USB layout differs from "channels first, master last".
+    struct MixerProfile {
+        let mainLeft: Int            // left channel index of the main pair
+        let ignoredLefts: Set<Int>   // pairs that aren't mixer channels
+    }
+
+    /// Pioneer DJM-A9 (12 ch): USB 1/2 = mix (REC OUT), 3/4 … 9/10 = CH1 … CH4
+    /// (pre or post fader, set in the mixer's Setting Utility), 11/12 = FX send.
+    var mixerProfile: MixerProfile? {
+        let name = currentInput?.name.uppercased() ?? ""
+        if name.contains("DJM-A9") && channelCount >= 12 {
+            return MixerProfile(mainLeft: 0, ignoredLefts: [10])
+        }
+        return nil
     }
 
     /// One engine and the input channels that feed it.
