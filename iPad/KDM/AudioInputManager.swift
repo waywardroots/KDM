@@ -165,6 +165,21 @@ final class AudioInputManager: ObservableObject {
     /// Tears the audio graph down and rebuilds it for the current route.
     /// How many times the audio engine was (re)started, and the last reason.
     @Published private(set) var restartCount = 0
+    /// Times the watchdog found the audio stopped and restarted it.
+    @Published private(set) var stallRecoveries = 0
+    private var lastStallRestart = Date.distantPast
+
+    /// Called about once a second. If the engine says it's running but no audio
+    /// has arrived for 2 s (the USB stream stalled), rebuild it.
+    func checkForStall() {
+        guard status == .running, Date().timeIntervalSince(lastStallRestart) > 5 else { return }
+        let silentMs = inputMeter.msSinceLastBuffer()
+        guard silentMs > 2000 || (!engine.isRunning && tapInstalled) else { return }
+        lastStallRestart = Date()
+        stallRecoveries += 1
+        log(String(format: "No audio for %.1f s; restarting the engine", silentMs / 1000))
+        restart()
+    }
 
     func restart() {
         restartCount += 1
@@ -232,6 +247,9 @@ final class AudioInputManager: ObservableObject {
     private func configureSession() throws {
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.record, mode: .measurement, options: [])
+        // A roomier I/O buffer (~21 ms) rides out USB hiccups better than the
+        // default, and key/BPM analysis doesn't need low latency.
+        try? session.setPreferredIOBufferDuration(1024.0 / 48000.0)
         try session.setActive(true)
 
         // Use the input the user picked last time if it's plugged in; otherwise

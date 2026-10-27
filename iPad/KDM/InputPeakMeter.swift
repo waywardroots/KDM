@@ -64,6 +64,15 @@ final class InputPeakMeter: @unchecked Sendable {
         return h
     }
 
+    /// How long since the last buffer arrived (0 before the first one).
+    func msSinceLastBuffer() -> Double {
+        os_unfair_lock_lock(&lock)
+        let last = lastBuffer
+        os_unfair_lock_unlock(&lock)
+        guard last != 0 else { return 0 }
+        return Double(mach_absolute_time() - last) * Self.timebase
+    }
+
     func resetHealth() {
         os_unfair_lock_lock(&lock)
         buffers = 0; healthBuffers = 0; gaps = 0; longestGapMs = 0; lastBuffer = 0
