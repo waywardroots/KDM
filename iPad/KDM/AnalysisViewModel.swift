@@ -78,6 +78,9 @@ final class AnalysisViewModel: ObservableObject {
     @Published private(set) var mainKey: DetectedKey?
     /// Note energy of the main output, C … B (the note bars), normalised 0…1.
     @Published private(set) var chroma: [Float] = Array(repeating: 0, count: 12)
+    /// Level of each input stereo pair (dBFS, with fall-off): USB 1+2, 3+4, …
+    @Published private(set) var pairLevels: [Float] = []
+
     /// The deck the main key comes from ("Serato 2", "CDJ 1"), nil = from the audio.
     @Published private(set) var mainDeckLabel: String?
     /// One entry per mixer channel (empty for a 1-2 channel input).
@@ -277,6 +280,7 @@ final class AnalysisViewModel: ObservableObject {
         refreshKeyText()
 
         updateChannels(now: now, dt: dt)
+        updatePairLevels(dt: dt)
     }
 
     /// The deck leading the mix, or nil when no player deck is audible.
@@ -352,6 +356,16 @@ final class AnalysisViewModel: ObservableObject {
             defaults.set(Dictionary(uniqueKeysWithValues: result.map { ($0.value, $0.key) }), forKey: Keys.learnedMatches)
         }
     }
+    private func updatePairLevels(dt: Float) {
+        let peaks = audio.inputMeter.take(channels: audio.channelCount)
+        let pairs = stride(from: 0, to: peaks.count, by: 2).map { i in
+            Self.db(max(peaks[i], i + 1 < peaks.count ? peaks[i + 1] : 0))
+        }
+        var levels = pairLevels.count == pairs.count ? pairLevels : pairs
+        for i in pairs.indices { levels[i] = max(pairs[i], levels[i] - 24 * dt) }
+        if levels != pairLevels { pairLevels = levels }
+    }
+
     /// Pioneer setups normally put player N on mixer channel N: start each new
     /// "CDJ N" just above the match threshold on "Ch N", so its card is right
     /// at once; fader evidence still overrides it if the wiring is different.

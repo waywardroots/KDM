@@ -95,6 +95,8 @@ final class AudioInputManager: ObservableObject {
     @Published private(set) var inputs: [AudioInput] = []
     @Published private(set) var currentInputID: String?
     @Published private(set) var channelCount = 0
+    /// Live peak of every input channel (for the "All USB inputs" meters).
+    let inputMeter = InputPeakMeter()
     @Published private(set) var channelNames: [String] = []
     /// The pair analysed as the main output (mixer master) — the big read-out.
     @Published private(set) var channelSelection: ChannelSelection = .stereo(left: 0)
@@ -352,7 +354,7 @@ final class AudioInputManager: ObservableObject {
                                      right: channelSelection.rightIndex)]
         routes += strips.map { Route(engine: $0.engine, left: $0.selection.leftIndex, right: $0.selection.rightIndex) }
 
-        input.installTap(onBus: 0, bufferSize: 1024, format: format, block: Self.makeTapBlock(routes: routes))
+        input.installTap(onBus: 0, bufferSize: 1024, format: format, block: Self.makeTapBlock(routes: routes, meter: inputMeter))
         tapInstalled = true
     }
 
@@ -438,11 +440,12 @@ final class AudioInputManager: ObservableObject {
     }
 
     /// Built outside the main actor: the tap runs on an audio thread.
-    nonisolated private static func makeTapBlock(routes: [Route]) -> AVAudioNodeTapBlock {
+    nonisolated private static func makeTapBlock(routes: [Route], meter: InputPeakMeter) -> AVAudioNodeTapBlock {
         return { buffer, _ in
             guard let data = buffer.floatChannelData else { return }
             let channels = Int(buffer.format.channelCount)
             let frames = Int(buffer.frameLength)
+            meter.update(data, channels: channels, frames: frames)
             for route in routes where route.left < channels {
                 var rightPtr: UnsafePointer<Float>? = nil
                 if let r = route.right, r < channels {

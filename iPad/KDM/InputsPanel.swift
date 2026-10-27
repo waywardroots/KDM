@@ -33,6 +33,7 @@ struct InputsPanel: View {
                     sourceCard
                     playersCard
                     mixerChannelsCard
+                    if audio.channelCount >= 4 { allInputsCard }
                     diagnosticsCard
                 }
                 .padding(20)
@@ -329,6 +330,50 @@ struct InputsPanel: View {
     }
 
     // MARK: - Diagnostics
+
+    /// Every stereo pair with a live level and what KDM uses it for, to find
+    /// out which pair the mixer sends each channel on.
+    private var allInputsCard: some View {
+        Card(title: "All USB inputs (live)") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Play one deck at a time and watch which pair moves.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                ForEach(Array(model.pairLevels.enumerated()), id: \.offset) { i, db in
+                    let left = i * 2
+                    HStack(spacing: 10) {
+                        Text("USB \(left + 1) + \(left + 2)")
+                            .font(.callout.monospacedDigit())
+                            .frame(width: 92, alignment: .leading)
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Color.white.opacity(0.08))
+                                Capsule()
+                                    .fill(db > -6 ? Color.red : db > -18 ? Color.yellow : Color.green)
+                                    .frame(width: geo.size.width * LevelMeterView.position(db))
+                            }
+                        }
+                        .frame(height: 8)
+                        Text(db <= AnalysisViewModel.floorDb + 1 ? "—" : String(format: "%.0f dB", db))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(width: 52, alignment: .trailing)
+                        Text(pairRole(left))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 70, alignment: .leading)
+                    }
+                }
+            }
+        }
+    }
+
+    private func pairRole(_ left: Int) -> String {
+        if audio.channelSelection.leftIndex == left { return "Main" }
+        if let strip = audio.strips.first(where: { $0.id == left }) { return strip.name }
+        if audio.mixerProfile?.ignoredLefts.contains(left) == true { return "FX send" }
+        return "—"
+    }
 
     private var diagnosticsCard: some View {
         Card(title: "Audio diagnostics") {
