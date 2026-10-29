@@ -13,7 +13,11 @@ final class InputPeakMeter: @unchecked Sendable {
     private var buffers = 0
     private var lastBuffer: UInt64 = 0
     private var gaps = 0
+    private var stalls = 0
     private var longestGapMs: Double = 0
+    private var lastFrames = 0
+    /// Set by the audio manager; used to tell a late buffer from a big one.
+    var sampleRate: Double = 48000
     private static let timebase: Double = {
         var info = mach_timebase_info_data_t(); mach_timebase_info(&info)
         return Double(info.numer) / Double(info.denom) / 1_000_000   // ticks -> ms
@@ -21,8 +25,10 @@ final class InputPeakMeter: @unchecked Sendable {
 
     struct Health {
         var buffersPerSecond: Double
-        var gaps: Int            // pauses of more than 3 expected buffer lengths, since start
+        var gaps: Int            // a buffer later than 2.5× its own length (since start)
+        var stalls: Int          // no audio at all for over a second
         var longestGapMs: Double
+        var framesPerBuffer: Int
     }
 
     /// From the audio thread: the loudest sample per channel in this buffer.
@@ -34,10 +40,13 @@ final class InputPeakMeter: @unchecked Sendable {
         buffers += 1
         if lastBuffer != 0 {
             let ms = Double(now - lastBuffer) * Self.timebase
-            if ms > 100 { gaps += 1 }
+            let bufferMs = Double(frames) / max(sampleRate, 1) * 1000
+            if ms > max(50, bufferMs * 2.5) { gaps += 1 }
+            if ms > 1000 { stalls += 1 }
             if ms > longestGapMs && ms < 60_000 { longestGapMs = ms }
         }
         lastBuffer = now
+        lastFrames = frames
         peaks.withUnsafeMutableBufferPointer { p in
             for c in 0..<n {
                 var m: Float = 0
@@ -59,7 +68,7 @@ final class InputPeakMeter: @unchecked Sendable {
         let rate = seconds > 0 ? Double(buffers - healthBuffers) / seconds : 0
         healthStart = now
         healthBuffers = buffers
-        let h = Health(buffersPerSecond: rate, gaps: gaps, longestGapMs: longestGapMs)
+        let h = Health(buffersPerSecond: rate, gaps: gaps, stalls: stalls, longestGapMs: longestGapMs, framesPerBuffer: lastFrames)
         os_unfair_lock_unlock(&lock)
         return h
     }
@@ -73,9 +82,11 @@ final class InputPeakMeter: @unchecked Sendable {
         return Double(mach_absolute_time() - last) * Self.timebase
     }
 
+    /// After an engine restart: forget when the last buffer came (the restart
+    /// itself isn't a stall), but keep the counts so stalls stay visible.
     func resetHealth() {
         os_unfair_lock_lock(&lock)
-        buffers = 0; healthBuffers = 0; gaps = 0; longestGapMs = 0; lastBuffer = 0
+        buffers = 0; healthBuffers = 0; lastBuffer = 0
         healthStart = mach_absolute_time()
         os_unfair_lock_unlock(&lock)
     }

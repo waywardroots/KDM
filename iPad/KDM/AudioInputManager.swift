@@ -324,6 +324,7 @@ final class AudioInputManager: ObservableObject {
 
         channelCount = Int(format.channelCount)
         sampleRate = format.sampleRate
+        inputMeter.sampleRate = format.sampleRate
         engineInputUID = AVAudioSession.sharedInstance().currentRoute.inputs.first?.uid
         engineChannelCount = channelCount
         log("Engine input: \(channelCount) ch @ \(Int(sampleRate)) Hz from \(currentInput?.name ?? "?")")

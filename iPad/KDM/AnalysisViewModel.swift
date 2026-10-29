@@ -293,10 +293,12 @@ final class AnalysisViewModel: ObservableObject {
         if now.timeIntervalSince(lastHealth) >= 1 {
             lastHealth = now
             let h = audio.inputMeter.health()
-            audioHealth = String(format: "%.0f buffers/s · %d gap%@ over 100 ms (longest %.0f ms) · %d restart%@ · %d auto-recover%@ · %d skipped · UI tick %.0f ms",
-                                 h.buffersPerSecond, h.gaps, h.gaps == 1 ? "" : "s", h.longestGapMs,
-                                 audio.restartCount, audio.restartCount == 1 ? "" : "s",
-                                 audio.stallRecoveries, audio.stallRecoveries == 1 ? "y" : "ies", audio.worker.dropped, dt * 1000)
+            audioHealth = String(format: "%.0f buffers/s of %d frames @ %.0f Hz · %d late buffer%@ · %d stall%@ over 1 s (longest %.1f s) · %d auto-recover%@ · %d skipped · UI tick %.0f ms",
+                                 h.buffersPerSecond, h.framesPerBuffer, audio.sampleRate,
+                                 h.gaps, h.gaps == 1 ? "" : "s",
+                                 h.stalls, h.stalls == 1 ? "" : "s", h.longestGapMs / 1000,
+                                 audio.stallRecoveries, audio.stallRecoveries == 1 ? "y" : "ies",
+                                 audio.worker.dropped, dt * 1000)
             audio.checkForStall()
         }
     }
