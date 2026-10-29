@@ -9,6 +9,10 @@
 	<array>
 		<string>_kdm-decks._tcp</string>
 	</array>
+	<!-- No encryption beyond what iPadOS provides: skips the export
+	     compliance question on every TestFlight / App Store upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<!-- Keep listening to the mixer while another app is in front. -->
