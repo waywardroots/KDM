@@ -94,6 +94,18 @@ final class AnalysisViewModel: ObservableObject {
     @Published private(set) var mainDeckLabel: String?
     /// "Artist – Title" of the deck leading the mix, when a player reports it.
     @Published private(set) var mainTrack: String?
+
+    /// A channel the DJ held down to make it the main key (several tracks can
+    /// be playing at once). Released by holding it again, holding another
+    /// channel, or when it has been silent for a few seconds.
+    @Published private(set) var pinnedChannelID: Int?
+    private var pinnedSilentSince: Date?
+    private static let pinReleaseSeconds: TimeInterval = 5
+
+    func togglePin(channel id: Int) {
+        pinnedChannelID = pinnedChannelID == id ? nil : id
+        pinnedSilentSince = nil
+    }
     /// One entry per mixer channel (empty for a 1-2 channel input).
     @Published private(set) var channels: [ChannelReadout] = []
 
@@ -290,6 +302,7 @@ final class AnalysisViewModel: ObservableObject {
                 bpmIsReliable = true
             }
         }
+        applyPin(now: now)
         refreshKeyText()
 
         updateChannels(now: now, dt: dt)
@@ -305,6 +318,27 @@ final class AnalysisViewModel: ObservableObject {
                                  audio.worker.dropped, dt * 1000)
             audio.checkForStall()
         }
+    }
+
+    /// A held-down channel overrides the automatic choice of main key.
+    private func applyPin(now: Date) {
+        guard let id = pinnedChannelID else { return }
+        guard let ch = channels.first(where: { $0.id == id }) else { pinnedChannelID = nil; return }
+        let audible = ch.hasSignal || playerDeck(forChannel: id)?.isAudible == true
+        if audible {
+            pinnedSilentSince = nil
+        } else if let since = pinnedSilentSince {
+            if now.timeIntervalSince(since) > Self.pinReleaseSeconds { pinnedChannelID = nil; return }
+        } else {
+            pinnedSilentSince = now
+        }
+        guard let key = ch.key else { return }
+        lastKey = (key.pitchClass, key.isMinor)
+        keyIsReliable = true
+        keyDetail = "held: \(ch.name)" + (ch.track.map { " · \($0)" } ?? "")
+        if let bpm = ch.bpm { bpmText = Self.bpmText(bpm); bpmIsReliable = true }
+        mainDeckLabel = ch.player ?? ch.name
+        if ch.track != mainTrack { mainTrack = ch.track }
     }
 
     /// The deck leading the mix, or nil when no player deck is audible.

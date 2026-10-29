@@ -271,13 +271,22 @@ struct ContentView: View {
                                 keyText: model.keyText(channel.key),
                                 keyAltText: model.keyAltText(channel.key),
                                 match: planChannel?.id == channel.id ? nil : mixMatch(for: channel),
-                                planning: planChannel?.id == channel.id)
+                                planning: planChannel?.id == channel.id,
+                                pinned: model.pinnedChannelID == channel.id)
                         .contentShape(Rectangle())
+                        // Hold: make this channel the main key (hold again to release).
+                        .onLongPressGesture(minimumDuration: 0.5) {
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                planChannelID = nil
+                                model.togglePin(channel: channel.id)
+                            }
+                        }
                         .onTapGesture { plan(from: channel) }
                 }
             }
             if !model.channels.isEmpty && model.channels.contains(where: { $0.key != nil }) {
-                Text("Tap a channel to plan next keys from it for \(Int(Self.planSeconds)) s")
+                Text("Tap a channel to plan next keys from it for \(Int(Self.planSeconds)) s · hold a channel to make it the main key")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -382,6 +391,8 @@ struct ChannelCard: View {
     var match: MixMatch? = nil
     /// Tapped: Next keys are planned from this channel.
     var planning = false
+    /// Held: this channel is the main key.
+    var pinned = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -408,7 +419,14 @@ struct ChannelCard: View {
                 .foregroundStyle(channel.key != nil ? .primary : .secondary)
 
             // How this channel's key mixes with the main output.
-            if planning {
+            if pinned && !planning {
+                Label("Main key", systemImage: "pin.fill")
+                    .font(.caption.weight(.bold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.white.opacity(0.18)))
+                    .foregroundStyle(.white)
+            } else if planning {
                 Text("Planning from here")
                     .font(.caption.weight(.bold))
                     .padding(.horizontal, 8)
@@ -463,9 +481,9 @@ struct ChannelCard: View {
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(channel.hasSignal ? 0.07 : 0.035)))
         .overlay(RoundedRectangle(cornerRadius: 12)
-            .strokeBorder(planning ? Color.accentColor
+            .strokeBorder(planning ? Color.accentColor : pinned ? Color.white.opacity(0.9)
                           : match.map { $0 == .clash ? Color.clear : $0.category.color.opacity(0.7) } ?? .clear,
-                          lineWidth: planning ? 3 : 2))
+                          lineWidth: planning || pinned ? 3 : 2))
         .opacity(channel.hasSignal ? 1 : 0.55)
         .accessibilityElement(children: .combine)
     }
