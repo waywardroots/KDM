@@ -265,12 +265,13 @@ final class AudioInputManager: ObservableObject {
             try session.setPreferredInput(usb)
         }
 
-        // Ask for 48 kHz: DJ mixers' USB audio runs natively at 48 kHz (the DJM-A9
-        // follows whatever the host asks for), and iPadOS otherwise often picks
-        // 44.1 kHz, which means resampling and a less steady input stream.
-        if session.preferredSampleRate != 48000 {
-            do { try session.setPreferredSampleRate(48000) }
-            catch { log("Couldn't ask for 48 kHz: \(error.localizedDescription)") }
+        // Run at the mixer's own rate so iPadOS doesn't resample (left to
+        // itself it often picks 44.1 kHz). Set in Inputs to match the mixer
+        // (DJM-A9: the sampling rate in its Setting Utility).
+        let rate = Double(usbSampleRate)
+        if session.preferredSampleRate != rate {
+            do { try session.setPreferredSampleRate(rate) }
+            catch { log("Couldn't ask for \(usbSampleRate) Hz: \(error.localizedDescription)") }
         }
 
         // iPadOS opens only 1-2 input channels unless asked for more. Ask for all
@@ -438,6 +439,16 @@ final class AudioInputManager: ObservableObject {
             case .masterLast:  return "Master last (Denon)"
             case .masterFirst: return "Master first (Pioneer)"
             }
+        }
+    }
+
+    /// The sample rate to run the USB input at; match the mixer's setting.
+    static let sampleRates = [44100, 48000, 96000]
+    @Published var usbSampleRate: Int = UserDefaults.standard.object(forKey: "kdm.input.samplerate") as? Int ?? 48000 {
+        didSet {
+            guard usbSampleRate != oldValue else { return }
+            defaults.set(usbSampleRate, forKey: "kdm.input.samplerate")
+            restart()
         }
     }
 

@@ -303,6 +303,17 @@ struct InputsPanel: View {
                     Text("Denon X1800: channels on USB 1+2 … 7+8, master on 9+10. Pioneer DJM-A9: mix on USB 1+2, CH1 … CH4 on 3+4 … 9+10, FX send on 11+12.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                    LabeledRow("Sample rate") {
+                        Picker("Sample rate", selection: $audio.usbSampleRate) {
+                            ForEach(AudioInputManager.sampleRates, id: \.self) { r in
+                                Text(r == 44100 ? "44.1 kHz" : "\(r / 1000) kHz").tag(r)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    Text(String(format: "Match the mixer's setting (DJM-A9: sampling rate in the Setting Utility). Running at %.1f kHz now.", audio.sampleRate / 1000))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
 
                 if audio.channelCount < 4 {
