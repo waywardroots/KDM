@@ -10,6 +10,38 @@ struct ContentView: View {
     @ObservedObject var players: PlayerLink
 
     @State private var showInputs = false
+    /// A channel card the DJ tapped to plan from: Next keys (and the card
+    /// colours) follow its key for a while, then go back to the main output.
+    @State private var planChannelID: Int?
+    @State private var planUntil = Date.distantPast
+    private static let planSeconds: TimeInterval = 10
+
+    /// The tapped channel, while it still has a key and time is left.
+    private var planChannel: ChannelReadout? {
+        guard let id = planChannelID, Date() < planUntil else { return nil }
+        return model.channels.first { $0.id == id && $0.key != nil }
+    }
+    /// The key the Next keys and card colours are based on.
+    private var referenceKey: DetectedKey? { planChannel?.key ?? model.mainKey }
+
+    private func plan(from channel: ChannelReadout) {
+        guard channel.key != nil else { return }
+        if planChannelID == channel.id && Date() < planUntil {
+            withAnimation(.easeInOut(duration: 0.2)) { planChannelID = nil }   // tap again: back now
+            return
+        }
+        let until = Date().addingTimeInterval(Self.planSeconds)
+        withAnimation(.easeInOut(duration: 0.2)) {
+            planChannelID = channel.id
+            planUntil = until
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.planSeconds) {
+            // Only if no other card was tapped in the meantime.
+            if planUntil == until {
+                withAnimation(.easeInOut(duration: 0.3)) { planChannelID = nil }
+            }
+        }
+    }
     /// Minimal view (key + note bars only). Remembered between launches.
     @AppStorage("kdm.view.minimal") private var minimal = false
 
@@ -182,7 +214,15 @@ struct ContentView: View {
                     }
                 }
 
-                if let key = model.mainKey {
+                if let channel = planChannel, let key = channel.key {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        let left = max(0, Int(planUntil.timeIntervalSince(context.date).rounded(.up)))
+                        NextKeysView(from: key, model: model,
+                                     title: "NEXT KEYS FROM \(channel.name.uppercased()) (\(model.keyText(key))) · BACK TO MAIN IN \(left) S",
+                                     accent: true)
+                    }
+                    .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { planChannelID = nil } }
+                } else if let key = model.mainKey {
                     NextKeysView(from: key, model: model)
                 }
 
@@ -230,8 +270,16 @@ struct ContentView: View {
                     ChannelCard(channel: channel,
                                 keyText: model.keyText(channel.key),
                                 keyAltText: model.keyAltText(channel.key),
-                                match: mixMatch(for: channel))
+                                match: planChannel?.id == channel.id ? nil : mixMatch(for: channel),
+                                planning: planChannel?.id == channel.id)
+                        .contentShape(Rectangle())
+                        .onTapGesture { plan(from: channel) }
                 }
+            }
+            if !model.channels.isEmpty && model.channels.contains(where: { $0.key != nil }) {
+                Text("Tap a channel to plan next keys from it for \(Int(Self.planSeconds)) s")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
             if model.mainKey != nil && !model.channels.isEmpty {
                 MixLegend()
@@ -241,7 +289,7 @@ struct ContentView: View {
 
     /// How a channel's key mixes with the main output (nil = a key is unknown).
     private func mixMatch(for channel: ChannelReadout) -> MixMatch? {
-        guard let main = model.mainKey, let key = channel.key else { return nil }
+        guard let main = referenceKey, let key = channel.key else { return nil }
         return MixMatch(from: main, to: key)
     }
 
@@ -332,6 +380,8 @@ struct ChannelCard: View {
     let keyAltText: String
     /// How this channel mixes with the main output (nil = a key is unknown).
     var match: MixMatch? = nil
+    /// Tapped: Next keys are planned from this channel.
+    var planning = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -358,7 +408,14 @@ struct ChannelCard: View {
                 .foregroundStyle(channel.key != nil ? .primary : .secondary)
 
             // How this channel's key mixes with the main output.
-            if let match {
+            if planning {
+                Text("Planning from here")
+                    .font(.caption.weight(.bold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.accentColor.opacity(0.2)))
+                    .foregroundStyle(Color.accentColor)
+            } else if let match {
                 Text(match.label)
                     .font(.caption.weight(.bold))
                     .padding(.horizontal, 8)
@@ -406,7 +463,9 @@ struct ChannelCard: View {
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(channel.hasSignal ? 0.07 : 0.035)))
         .overlay(RoundedRectangle(cornerRadius: 12)
-            .strokeBorder(match.map { $0 == .clash ? Color.clear : $0.category.color.opacity(0.7) } ?? .clear, lineWidth: 2))
+            .strokeBorder(planning ? Color.accentColor
+                          : match.map { $0 == .clash ? Color.clear : $0.category.color.opacity(0.7) } ?? .clear,
+                          lineWidth: planning ? 3 : 2))
         .opacity(channel.hasSignal ? 1 : 0.55)
         .accessibilityElement(children: .combine)
     }
@@ -458,12 +517,17 @@ struct NextKeysView: View {
     @ObservedObject var model: AnalysisViewModel
     /// Bigger chips in one row, for the Minimal view.
     var large = false
+    var title = "NEXT KEYS"
+    /// Shown in the accent colour (planning from a tapped channel).
+    var accent = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: large ? 12 : 8) {
-            Text("NEXT KEYS")
+            Text(title)
                 .font((large ? Font.callout : Font.caption).weight(.semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(accent ? Color.accentColor : Color.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             // One equal-width column per suggestion, filling the whole row.
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: large ? 12 : 8),
                                      count: MixMove.suggestions.count),
