@@ -265,6 +265,14 @@ final class AudioInputManager: ObservableObject {
             try session.setPreferredInput(usb)
         }
 
+        // Ask for 48 kHz: DJ mixers' USB audio runs natively at 48 kHz (the DJM-A9
+        // follows whatever the host asks for), and iPadOS otherwise often picks
+        // 44.1 kHz, which means resampling and a less steady input stream.
+        if session.preferredSampleRate != 48000 {
+            do { try session.setPreferredSampleRate(48000) }
+            catch { log("Couldn't ask for 48 kHz: \(error.localizedDescription)") }
+        }
+
         // iPadOS opens only 1-2 input channels unless asked for more. Ask for all
         // of them so every channel pair a mixer sends over USB can be selected.
         // (This only works once the device is the active route; if the switch is
