@@ -65,6 +65,9 @@ public struct CDJStatus: Equatable {
     /// From the source player's rekordbox database (filled in by the client).
     public var title: String? = nil
     public var artist: String? = nil
+    /// The key from the rekordbox database (as rekordbox shows it), filled in
+    /// by the client. What older players (no key field) show.
+    public var databaseKey: String? = nil
 
     /// A track is loaded (play state isn't "no track"), as beat-link decides it.
     public var loaded: Bool { playState != 0 || (trackSourcePlayer != 0 && rekordboxID != 0) }
@@ -72,7 +75,7 @@ public struct CDJStatus: Equatable {
     /// One line for the log: "CDJ-3000 #2: Am, 124.00 BPM, playing, on air, master".
     public var summary: String {
         guard loaded else { return "\(name) #\(player): no track" }
-        var parts = [currentKey?.description ?? "no key", effectiveBPM.map { String(format: "%.2f BPM", $0) } ?? "no BPM"]
+        var parts = [currentKey?.description ?? databaseKey.map { "\($0) (rekordbox)" } ?? "no key", effectiveBPM.map { String(format: "%.2f BPM", $0) } ?? "no BPM"]
         parts.append(playing ? "playing" : "stopped")
         if onAir { parts.append("on air") }
         if isMaster { parts.append("master") }

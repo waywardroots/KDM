@@ -13,6 +13,9 @@ import Foundation
 public struct TrackMetadata: Equatable {
     public var title: String?
     public var artist: String?
+    /// The key as rekordbox shows it ("Am", "8A" …), for players that don't
+    /// report the key themselves (CDJ-2000NXS2 and older).
+    public var key: String?
 }
 
 public enum DBServer {
@@ -86,6 +89,7 @@ public enum DBServer {
     // Menu item types.
     static let itemTitle: UInt32 = 0x0004
     static let itemArtist: UInt32 = 0x0007
+    static let itemKey: UInt32 = 0x000f
 
     /// r:m:s:t — requesting player, menu (1 = main), slot, track type.
     static func rmst(player: Int, slot: Int, trackType: Int) -> Field {
@@ -153,6 +157,7 @@ public enum DBServer {
             guard let label, !label.isEmpty else { continue }
             if kind == itemTitle { m.title = label }
             if kind == itemArtist { m.artist = label }
+            if kind == itemKey { m.key = label }
         }
         return m
     }

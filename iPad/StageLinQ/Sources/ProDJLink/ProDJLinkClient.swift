@@ -176,6 +176,7 @@ public final class ProDJLinkClient: @unchecked Sendable {
             if let m = metadata[key] {
                 s.title = m.title
                 s.artist = m.artist
+                s.databaseKey = m.key
             } else {
                 lookUp(key, for: s)
             }
@@ -183,8 +184,8 @@ public final class ProDJLinkClient: @unchecked Sendable {
         if s.player == Int(deviceNumber) { return }
         let old = status[s.player]
         if old == nil {
-            log(s.summary + (s.key == nil && s.loaded ? " (no key field: not a CDJ-3000?)" : ""))
-        } else if let old, old.loaded != s.loaded || old.currentKey != s.currentKey || old.onAir != s.onAir {
+            log(s.summary + (s.key == nil && s.loaded ? " (no key field; using the rekordbox key)" : ""))
+        } else if let old, old.loaded != s.loaded || old.currentKey != s.currentKey || old.databaseKey != s.databaseKey || old.onAir != s.onAir {
             log(s.summary)      // track, key or on-air changed
         }
         status[s.player] = s
@@ -213,7 +214,7 @@ public final class ProDJLinkClient: @unchecked Sendable {
                     self.metadata[key] = m
                     self.log("Track on player \(source): " + ([m.artist, m.title].compactMap { $0 }.joined(separator: " – ").nilIfEmpty ?? "no title in database"))
                     for (n, var st) in self.status where "\(st.trackSourcePlayer)/\(st.trackSlot)/\(st.trackType)/\(st.rekordboxID)" == key {
-                        st.title = m.title; st.artist = m.artist
+                        st.title = m.title; st.artist = m.artist; st.databaseKey = m.key
                         self.status[n] = st
                     }
                     self.publishStatus()

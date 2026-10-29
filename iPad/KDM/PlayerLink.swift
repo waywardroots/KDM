@@ -182,9 +182,16 @@ final class PlayerLink: ObservableObject {
     private func updatePioneer(_ players: [CDJStatus]) {
         if players.contains(where: { $0.onAir }) { onAirKnown = true }
         cdjDecks = players.map { p in
-            let key = p.currentKey.map { DetectedKey(pitchClass: $0.pitchClass, isMinor: $0.isMinor) }
+            // CDJ-3000s report the key; older players (2000NXS2) get it from
+            // the rekordbox database on the USB (the track's analysed key).
+            var key = p.currentKey.map { DetectedKey(pitchClass: $0.pitchClass, isMinor: $0.isMinor) }
+            var keyText = p.currentKey?.description
+            if key == nil, let text = p.databaseKey, let k = MusicalKey(parsing: text) {
+                key = DetectedKey(pitchClass: k.pitchClass, isMinor: k.isMinor)
+                keyText = text
+            }
             return PlayerDeck(id: "cdj#\(p.player)", label: "CDJ \(p.player)",
-                              key: key, keyText: p.currentKey?.description,
+                              key: key, keyText: keyText,
                               bpm: p.effectiveBPM.map(Float.init),
                               title: p.title, artist: p.artist,
                               loaded: p.loaded, playing: p.playing,

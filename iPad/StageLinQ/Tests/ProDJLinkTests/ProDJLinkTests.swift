@@ -147,8 +147,9 @@ final class DBServerTests: XCTestCase {
                 .number(0, size: 4), .number(1, size: 4), .number(UInt32(label.utf16.count * 2 + 2), size: 4), .string(label),
                 .number(2, size: 4), .string(""), .number(type, size: 4), .number(0, size: 4), .number(0, size: 4), .number(0, size: 4)])
         }
-        let m = DBServer.metadata(from: [item(0x0004, "Think in Nothing"), item(0x0007, "Oscar Cornell"), item(0x000d, "x")])
+        let m = DBServer.metadata(from: [item(0x0004, "Think in Nothing"), item(0x0007, "Oscar Cornell"), item(0x000d, "x"), item(0x000f, "8A")])
         XCTAssertEqual(m.title, "Think in Nothing")
         XCTAssertEqual(m.artist, "Oscar Cornell")
+        XCTAssertEqual(m.key, "8A")
     }
 }
