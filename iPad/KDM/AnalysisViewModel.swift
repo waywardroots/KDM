@@ -92,6 +92,8 @@ final class AnalysisViewModel: ObservableObject {
 
     /// The deck the main key comes from ("Serato 2", "CDJ 1"), nil = from the audio.
     @Published private(set) var mainDeckLabel: String?
+    /// "Artist – Title" of the deck leading the mix, when a player reports it.
+    @Published private(set) var mainTrack: String?
     /// One entry per mixer channel (empty for a 1-2 channel input).
     @Published private(set) var channels: [ChannelReadout] = []
 
@@ -277,6 +279,8 @@ final class AnalysisViewModel: ObservableObject {
         // fader highest), exactly as the player analysed it.
         let lead = mainPlayerDeck()
         mainDeckLabel = lead?.key != nil ? lead?.label : nil
+        let track = lead.flatMap { $0.trackLine.isEmpty ? nil : $0.trackLine }
+        if track != mainTrack { mainTrack = track }
         if let deck = lead, let key = deck.key {
             lastKey = (key.pitchClass, key.isMinor)
             keyIsReliable = true

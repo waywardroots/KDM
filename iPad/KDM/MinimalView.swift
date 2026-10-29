@@ -23,6 +23,17 @@ struct MinimalView: View {
                 Spacer(minLength: 12)
 
                 VStack(spacing: 8) {
+                    // The track playing on the deck leading the mix.
+                    VStack(spacing: 4) {
+                        Text(model.mainTrack ?? " ")
+                            .font(.system(size: compact ? 26 : 36, weight: .semibold, design: .rounded))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                        Text(model.mainDeckLabel ?? " ")
+                            .font(.system(size: compact ? 16 : 20, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                    }
+                    .opacity(model.mainTrack == nil ? 0 : 1)
                     Text(model.keyText)
                         .font(.system(size: compact ? 110 : 170, weight: .bold, design: .rounded))
                         .minimumScaleFactor(0.3)
