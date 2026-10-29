@@ -247,9 +247,20 @@ final class AudioInputManager: ObservableObject {
         }
     }
 
+    /// What iPadOS did with the sample rate we asked for, for the Inputs panel.
+    @Published private(set) var sampleRateNote = ""
+
     private func configureSession() throws {
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.record, mode: .measurement, options: [])
+
+        // Run at the mixer's own rate so iPadOS doesn't resample (left to
+        // itself it often picks 44.1 kHz). Set in Inputs to match the mixer
+        // (DJM-A9: the sampling rate in its Setting Utility). iPadOS applies a
+        // new rate when the session is activated, so ask before activating.
+        let rate = Double(usbSampleRate)
+        do { try session.setPreferredSampleRate(rate) }
+        catch { log("Couldn't ask for \(usbSampleRate) Hz: \(error.localizedDescription)") }
         // A roomier I/O buffer (~21 ms) rides out USB hiccups better than the
         // default, and key/BPM analysis doesn't need low latency.
         try? session.setPreferredIOBufferDuration(1024.0 / 48000.0)
@@ -265,14 +276,17 @@ final class AudioInputManager: ObservableObject {
             try session.setPreferredInput(usb)
         }
 
-        // Run at the mixer's own rate so iPadOS doesn't resample (left to
-        // itself it often picks 44.1 kHz). Set in Inputs to match the mixer
-        // (DJM-A9: the sampling rate in its Setting Utility).
-        let rate = Double(usbSampleRate)
-        if session.preferredSampleRate != rate {
-            do { try session.setPreferredSampleRate(rate) }
-            catch { log("Couldn't ask for \(usbSampleRate) Hz: \(error.localizedDescription)") }
+        // The input switch can leave the old rate in place: reactivate once.
+        if session.sampleRate != rate {
+            try? session.setActive(false)
+            try? session.setPreferredSampleRate(rate)
+            try session.setActive(true)
         }
+        sampleRateNote = session.sampleRate == rate
+            ? String(format: "Running at %.1f kHz.", rate / 1000)
+            : String(format: "Asked for %.1f kHz but iPadOS is running the input at %.1f kHz (the mixer may not offer that rate to the iPad).",
+                     rate / 1000, session.sampleRate / 1000)
+        log(sampleRateNote)
 
         // iPadOS opens only 1-2 input channels unless asked for more. Ask for all
         // of them so every channel pair a mixer sends over USB can be selected.

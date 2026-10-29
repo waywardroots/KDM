@@ -311,7 +311,7 @@ struct InputsPanel: View {
                         }
                         .pickerStyle(.segmented)
                     }
-                    Text(String(format: "Match the mixer's setting (DJM-A9: sampling rate in the Setting Utility). Running at %.1f kHz now.", audio.sampleRate / 1000))
+                    Text("Match the mixer's setting (DJM-A9: sampling rate in the Setting Utility). " + audio.sampleRateNote)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
